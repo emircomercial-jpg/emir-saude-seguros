@@ -1,0 +1,102 @@
+version: "3.9"
+
+# EMIR SAÚDE SEGUROS — Docker Compose
+#
+# Todos os serviços (postgres, backend, frontend) estão funcionais.
+# Ordem recomendada de arranque:
+#   docker compose up -d postgres
+#   ./scripts/setup-db.sh
+#   docker compose up -d --build backend
+#   docker compose up -d --build frontend
+# (Opcional) administração visual da base de dados:
+#   docker compose --profile tools up -d adminer
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: emir_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      TZ: ${TIMEZONE:-Africa/Luanda}
+    ports:
+      - "5432:5432"
+    volumes:
+      - emir_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - emir_internal
+    # Nunca expor a base de dados publicamente em produção — em produção,
+    # remover o bloco "ports" acima e aceder apenas através da rede interna.
+
+  adminer:
+    image: adminer:latest
+    container_name: emir_adminer
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - emir_internal
+    profiles:
+      - tools
+    # Serviço opcional de administração da base de dados (secção 26).
+    # Correr com: docker compose --profile tools up -d adminer
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: emir_backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+    ports:
+      - "${BACKEND_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - emir_internal
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Tem de ser passado como argumento de BUILD (não como "environment"
+        # do serviço) — o Vite só lê VITE_API_URL durante "npm run build",
+        # que acontece dentro deste passo de build da imagem, não quando o
+        # contentor já está a correr (nessa altura já só há ficheiros
+        # estáticos servidos pelo Nginx).
+        VITE_API_URL: ${API_URL}
+    container_name: emir_frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      - backend
+    networks:
+      - emir_internal
+
+networks:
+  emir_internal:
+    driver: bridge
+
+volumes:
+  emir_pg_data:

@@ -1,0 +1,4 @@
+# Cloudflare Pages (e Netlify) — redireccionamento para index.html em todas
+# as rotas, necessário para uma Single Page Application com React Router
+# (sem isto, recarregar a página em /dashboard ou /users dá 404).
+/*    /index.html   200

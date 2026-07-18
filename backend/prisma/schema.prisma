@@ -1,0 +1,1056 @@
+// ==================================================
+// EMIR SAÚDE SEGUROS — Prisma Schema (Bloco 2)
+// Fundação: organizações, utilizadores, perfis, permissões,
+// tokens de sessão, dispositivos, auditoria, configurações e
+// fila de sincronização. Os módulos de negócio (segurados,
+// apólices, sinistros, etc.) serão adicionados nos blocos
+// seguintes, sem alterar a estrutura aqui definida.
+// ==================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --------------------------------------------------
+// Enumerações
+// --------------------------------------------------
+
+enum OrganizationStatus {
+  active
+  suspended
+  inactive
+}
+
+enum UserStatus {
+  active
+  suspended
+  blocked
+  inactive
+}
+
+enum RoleStatus {
+  active
+  inactive
+}
+
+enum SyncOperation {
+  create
+  update
+  delete
+}
+
+enum SyncStatus {
+  pending
+  applied
+  conflict
+  rejected
+}
+
+enum InsuredStatus {
+  active
+  suspended
+  inactive
+  cancelled
+  waiting_period
+  expired
+  pending_approval
+  blocked_nonpayment
+}
+
+enum DependentRelationship {
+  spouse
+  child
+  parent
+  sibling
+  other
+}
+
+// --------------------------------------------------
+// Segurados e Dependentes (secções 3 e 4 do briefing original)
+// --------------------------------------------------
+
+model InsuredMember {
+  id               String        @id @default(uuid())
+  organizationId   String        @map("organization_id")
+  internalNumber   String        @unique @map("internal_number")
+  fullName         String        @map("full_name")
+  photoUrl         String?       @map("photo_url")
+  birthDate        DateTime      @map("birth_date")
+  sex              String        // M | F
+  maritalStatus    String?       @map("marital_status")
+  nationality      String?
+  idDocumentNumber String        @unique @map("id_document_number")
+  idIssueDate      DateTime?     @map("id_issue_date")
+  idExpiryDate     DateTime?     @map("id_expiry_date")
+  nif              String?       @unique
+  phone            String?
+  altPhone         String?       @map("alt_phone")
+  // Consentimento explícito para receber notificações por WhatsApp neste
+  // número (nunca activado por omissão — exige acção do próprio segurado
+  // ou de quem o regista, em conformidade com a exigência de consentimento
+  // para comunicações automatizadas).
+  whatsappOptIn    Boolean       @default(false) @map("whatsapp_opt_in")
+  email            String?
+  province         String?
+  municipality     String?
+  address          String?
+  profession       String?
+  employer         String?
+  bloodType        String?       @map("blood_type")
+  emergencyContact String?       @map("emergency_contact")
+  emergencyRelation String?      @map("emergency_relation")
+  joinDate         DateTime?     @map("join_date")
+  coverageStartDate DateTime?    @map("coverage_start_date")
+  coverageEndDate  DateTime?     @map("coverage_end_date")
+  status           InsuredStatus @default(pending_approval)
+  notes            String?
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  createdBy String?   @map("created_by")
+  updatedBy String?   @map("updated_by")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  dependents   Dependent[]
+  policyMembers PolicyMember[]
+  cards         InsuranceCard[]
+  authorizations Authorization[]
+  consultations  Consultation[]
+  prescriptions  Prescription[]
+  laboratoryRequests LaboratoryRequest[]
+  claims         Claim[]
+  reimbursements Reimbursement[]
+  premiums       Premium[]
+  portalUsers    User[]
+  invoiceItems   InvoiceItem[]
+
+  @@index([organizationId])
+  @@map("insured_members")
+}
+
+model Dependent {
+  id                String                 @id @default(uuid())
+  insuredMemberId   String                 @map("insured_member_id")
+  relationship      DependentRelationship
+  fullName          String                 @map("full_name")
+  photoUrl          String?                @map("photo_url")
+  birthDate         DateTime               @map("birth_date")
+  sex               String
+  idDocumentNumber  String?                @map("id_document_number")
+  phone             String?
+  inclusionDate     DateTime?              @map("inclusion_date")
+  exclusionDate     DateTime?              @map("exclusion_date")
+  status            String                 @default("active")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  createdBy String?   @map("created_by")
+  updatedBy String?   @map("updated_by")
+
+  insuredMember InsuredMember @relation(fields: [insuredMemberId], references: [id])
+
+  @@index([insuredMemberId])
+  @@map("dependents")
+}
+
+enum CompanyStatus {
+  active
+  suspended
+  cancelled
+}
+
+enum PlanStatus {
+  active
+  inactive
+}
+
+// --------------------------------------------------
+// Empresas Clientes (secção 15 do briefing original)
+// --------------------------------------------------
+
+model Company {
+  id              String        @id @default(uuid())
+  organizationId  String        @map("organization_id")
+  legalName       String        @map("legal_name")
+  tradeName       String?       @map("trade_name")
+  nif             String        @unique
+  sector          String?
+  responsibleName String?       @map("responsible_name")
+  phone           String?
+  email           String?
+  address         String?
+  province        String?
+  municipality    String?
+  planId          String?       @map("plan_id")
+  contractNumber  String?       @map("contract_number")
+  startDate       DateTime?     @map("start_date")
+  endDate         DateTime?     @map("end_date")
+  monthlyValue    Decimal?      @map("monthly_value") @db.Decimal(14, 2)
+  paymentMode     String?       @map("payment_mode")
+  status          CompanyStatus @default(active)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  createdBy String?   @map("created_by")
+  updatedBy String?   @map("updated_by")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  plan         HealthPlan?  @relation(fields: [planId], references: [id])
+  policies     Policy[]
+  premiums     Premium[]
+
+  @@index([organizationId])
+  @@map("companies")
+}
+
+// --------------------------------------------------
+// Planos de Saúde e Coberturas (secções 5 e 6 do briefing original)
+// --------------------------------------------------
+
+model HealthPlan {
+  id                 String     @id @default(uuid())
+  organizationId     String     @map("organization_id")
+  name               String
+  code               String     @unique
+  description        String?
+  monthlyValue       Decimal    @map("monthly_value") @db.Decimal(14, 2)
+  annualLimit        Decimal?   @map("annual_limit") @db.Decimal(14, 2)
+  minAge             Int?       @map("min_age")
+  maxAge             Int?       @map("max_age")
+  maxDependents      Int?       @map("max_dependents")
+  waitingPeriodDays  Int?       @map("waiting_period_days")
+  deductible         Decimal?   @db.Decimal(14, 2)
+  copaymentPercentage Decimal?  @map("copayment_percentage") @db.Decimal(5, 2)
+  status             PlanStatus @default(active)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  createdBy String?   @map("created_by")
+  updatedBy String?   @map("updated_by")
+
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  coverages    PlanCoverage[]
+  companies    Company[]
+  policies     Policy[]
+
+  @@index([organizationId])
+  @@map("health_plans")
+}
+
+model PlanCoverage {
+  id                    String   @id @default(uuid())
+  planId                String   @map("plan_id")
+  name                  String
+  coveredPercentage     Decimal  @map("covered_percentage") @db.Decimal(5, 2)
+  requiresAuthorization Boolean  @default(false) @map("requires_authorization")
+
+  plan HealthPlan @relation(fields: [planId], references: [id])
+
+  @@map("plan_coverages")
+}
+
+enum PolicyStatus {
+  active
+  suspended
+  cancelled
+  renewed
+  expired
+}
+
+// --------------------------------------------------
+// Apólices (secção 7 do briefing original)
+// --------------------------------------------------
+
+model Policy {
+  id               String       @id @default(uuid())
+  organizationId   String       @map("organization_id")
+  policyNumber     String       @unique @map("policy_number")
+  planId           String       @map("plan_id")
+  companyId        String?      @map("company_id")
+  issueDate        DateTime     @map("issue_date")
+  startDate        DateTime     @map("start_date")
+  endDate          DateTime     @map("end_date")
+  value            Decimal      @db.Decimal(14, 2)
+  paymentMode      String       @map("payment_mode")
+  status           PolicyStatus @default(active)
+
+  // Assinatura digital (hash SHA-256 do conteúdo do contrato — secção 7 do
+  // briefing original). Permite verificar, a qualquer momento, se os dados
+  // da apólice foram alterados depois de assinada.
+  signatureHash String?   @map("signature_hash")
+  signedAt      DateTime? @map("signed_at")
+  signedByName  String?   @map("signed_by_name")
+  signatureIp   String?   @map("signature_ip")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  createdBy String?   @map("created_by")
+  updatedBy String?   @map("updated_by")
+
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  plan         HealthPlan     @relation(fields: [planId], references: [id])
+  company      Company?       @relation(fields: [companyId], references: [id])
+  members      PolicyMember[]
+  claims       Claim[]
+  premiums     Premium[]
+
+  @@index([organizationId])
+  @@map("policies")
+}
+
+model PolicyMember {
+  id              String @id @default(uuid())
+  policyId        String @map("policy_id")
+  insuredMemberId String @map("insured_member_id")
+
+  policy        Policy        @relation(fields: [policyId], references: [id])
+  insuredMember InsuredMember @relation(fields: [insuredMemberId], references: [id])
+
+  @@unique([policyId, insuredMemberId])
+  @@map("policy_members")
+}
+
+enum CardStatus {
+  active
+  blocked
+  lost
+  stolen
+  replaced
+  expired
+}
+
+// --------------------------------------------------
+// Cartão de Seguro de Saúde (secções 8 e 9 do briefing original)
+// --------------------------------------------------
+
+model InsuranceCard {
+  id              String     @id @default(uuid())
+  insuredMemberId String     @map("insured_member_id")
+  cardNumber      String     @unique @map("card_number")
+  qrCodeToken     String     @unique @map("qr_code_token")
+  issueDate       DateTime   @default(now()) @map("issue_date")
+  expiryDate      DateTime   @map("expiry_date")
+  status          CardStatus @default(active)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  insuredMember InsuredMember @relation(fields: [insuredMemberId], references: [id])
+
+  @@index([insuredMemberId])
+  @@map("insurance_cards")
+}
+
+enum ProviderStatus {
+  active
+  suspended
+  under_review
+}
+
+// --------------------------------------------------
+// Prestadores de Saúde (secção 14 do briefing original)
+// --------------------------------------------------
+
+model Provider {
+  id              String         @id @default(uuid())
+  organizationId  String         @map("organization_id")
+  name            String
+  nif             String         @unique
+  type            String         // hospital | clinic | office | pharmacy | laboratory | physiotherapy | dentist | optics | ambulance
+  licenseNumber   String?        @map("license_number")
+  responsibleName String?        @map("responsible_name")
+  phone           String?
+  email           String?
+  address         String?
+  province        String?
+  municipality    String?
+  status          ProviderStatus @default(active)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  createdBy String?   @map("created_by")
+  updatedBy String?   @map("updated_by")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  authorizations Authorization[]
+  consultations  Consultation[]
+  pharmacyDispenses PharmacyDispense[]
+  laboratoryRequests LaboratoryRequest[]
+  claims         Claim[]
+  invoices       Invoice[]
+  portalUsers    User[]
+
+  @@index([organizationId])
+  @@map("providers")
+}
+
+enum AuthorizationStatus {
+  draft
+  submitted
+  in_review
+  awaiting_documents
+  approved
+  partially_approved
+  rejected
+  cancelled
+  expired
+  used
+}
+
+enum AuthorizationPriority {
+  normal
+  urgent
+}
+
+// --------------------------------------------------
+// Autorizações Médicas (secção 10 do briefing original)
+// --------------------------------------------------
+
+model Authorization {
+  id                     String                @id @default(uuid())
+  organizationId         String                @map("organization_id")
+  requestNumber          String                @unique @map("request_number")
+  insuredMemberId        String                @map("insured_member_id")
+  providerId             String?               @map("provider_id")
+  requestingDoctor       String?               @map("requesting_doctor")
+  type                   String                // consulta_especializada | exame | internamento | cirurgia | medicamento_alto_custo | tratamento_prolongado | fisioterapia | odontologia | evacuacao | procedimento_especial
+  diagnosisCode          String?               @map("diagnosis_code")
+  clinicalJustification  String?               @map("clinical_justification")
+  requestedProcedure     String?               @map("requested_procedure")
+  budget                 Decimal?              @db.Decimal(14, 2)
+  priority               AuthorizationPriority @default(normal)
+  status                 AuthorizationStatus   @default(submitted)
+  decisionNotes          String?               @map("decision_notes")
+  approvedValue          Decimal?              @map("approved_value") @db.Decimal(14, 2)
+  validUntil             DateTime?             @map("valid_until")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  createdBy String?   @map("created_by")
+  updatedBy String?   @map("updated_by")
+
+  organization  Organization            @relation(fields: [organizationId], references: [id])
+  insuredMember InsuredMember           @relation(fields: [insuredMemberId], references: [id])
+  provider      Provider?               @relation(fields: [providerId], references: [id])
+  history       AuthorizationHistory[]
+
+  @@index([organizationId])
+  @@map("authorizations")
+}
+
+model AuthorizationHistory {
+  id              String   @id @default(uuid())
+  authorizationId String   @map("authorization_id")
+  status          String
+  notes           String?
+  changedBy       String?  @map("changed_by")
+  changedAt       DateTime @default(now()) @map("changed_at")
+
+  authorization Authorization @relation(fields: [authorizationId], references: [id])
+
+  @@map("authorization_history")
+}
+
+// --------------------------------------------------
+// Consultas Médicas (secção 11 do briefing original)
+// --------------------------------------------------
+
+model Consultation {
+  id                   String    @id @default(uuid())
+  organizationId       String    @map("organization_id")
+  insuredMemberId      String    @map("insured_member_id")
+  providerId           String?   @map("provider_id")
+  doctorName           String?   @map("doctor_name")
+  specialty            String?
+  date                 DateTime  @default(now())
+  consultationType     String?   @map("consultation_type")
+  reason               String?
+  diagnosisCode        String?   @map("diagnosis_code")
+  diagnosisDescription String?   @map("diagnosis_description")
+  totalValue           Decimal?  @map("total_value") @db.Decimal(14, 2)
+  coveredValue         Decimal?  @map("covered_value") @db.Decimal(14, 2)
+  copayment            Decimal?  @db.Decimal(14, 2)
+  billingStatus        String    @default("pending") @map("billing_status")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  createdBy String?  @map("created_by")
+
+  organization  Organization  @relation(fields: [organizationId], references: [id])
+  insuredMember InsuredMember @relation(fields: [insuredMemberId], references: [id])
+  provider      Provider?     @relation(fields: [providerId], references: [id])
+
+  @@index([organizationId])
+  @@map("consultations")
+}
+
+// --------------------------------------------------
+// Farmácia e Medicamentos (secção 12 do briefing original)
+// --------------------------------------------------
+
+model Medicine {
+  id                   String   @id @default(uuid())
+  organizationId       String   @map("organization_id")
+  name                 String
+  activeIngredient     String?  @map("active_ingredient")
+  isGeneric            Boolean  @default(false) @map("is_generic")
+  isCovered            Boolean  @default(true) @map("is_covered")
+  requiresAuthorization Boolean @default(false) @map("requires_authorization")
+  monthlyLimitQuantity Int?     @map("monthly_limit_quantity")
+  copaymentPercentage  Decimal? @map("copayment_percentage") @db.Decimal(5, 2)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  organization  Organization   @relation(fields: [organizationId], references: [id])
+  prescriptions Prescription[]
+
+  @@index([organizationId])
+  @@map("medicines")
+}
+
+model Prescription {
+  id              String   @id @default(uuid())
+  insuredMemberId String   @map("insured_member_id")
+  medicineId      String   @map("medicine_id")
+  prescriberName  String?  @map("prescriber_name")
+  quantity        Int
+  dose            String?
+  frequency       String?
+  durationDays    Int?     @map("duration_days")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  insuredMember InsuredMember      @relation(fields: [insuredMemberId], references: [id])
+  medicine      Medicine           @relation(fields: [medicineId], references: [id])
+  dispenses     PharmacyDispense[]
+
+  @@map("prescriptions")
+}
+
+model PharmacyDispense {
+  id               String   @id @default(uuid())
+  prescriptionId   String   @map("prescription_id")
+  providerId       String?  @map("provider_id")
+  quantity         Int
+  value            Decimal? @db.Decimal(14, 2)
+  coveredValue     Decimal? @map("covered_value") @db.Decimal(14, 2)
+  insuredPaidValue Decimal? @map("insured_paid_value") @db.Decimal(14, 2)
+  dispensedAt      DateTime @default(now()) @map("dispensed_at")
+
+  prescription Prescription @relation(fields: [prescriptionId], references: [id])
+  provider     Provider?    @relation(fields: [providerId], references: [id])
+
+  @@map("pharmacy_dispenses")
+}
+
+// --------------------------------------------------
+// Laboratório e Exames (secção 13 do briefing original)
+// --------------------------------------------------
+
+model LaboratoryRequest {
+  id               String    @id @default(uuid())
+  organizationId   String    @map("organization_id")
+  insuredMemberId  String    @map("insured_member_id")
+  providerId       String?   @map("provider_id")
+  requestingDoctor String?   @map("requesting_doctor")
+  examName         String    @map("exam_name")
+  examCode         String?   @map("exam_code")
+  diagnosisCode    String?   @map("diagnosis_code")
+  value            Decimal?  @db.Decimal(14, 2)
+  coveredValue     Decimal?  @map("covered_value") @db.Decimal(14, 2)
+  status           String    @default("requested") // requested | authorization_pending | collected | completed | cancelled
+  requestedAt      DateTime  @default(now()) @map("requested_at")
+
+  organization  Organization       @relation(fields: [organizationId], references: [id])
+  insuredMember InsuredMember      @relation(fields: [insuredMemberId], references: [id])
+  provider      Provider?          @relation(fields: [providerId], references: [id])
+  result        LaboratoryResult?
+
+  @@index([organizationId])
+  @@map("laboratory_requests")
+}
+
+model LaboratoryResult {
+  id                  String   @id @default(uuid())
+  laboratoryRequestId String   @unique @map("laboratory_request_id")
+  resultAttachmentUrl String?  @map("result_attachment_url")
+  notes               String?
+  completedAt         DateTime @default(now()) @map("completed_at")
+
+  request LaboratoryRequest @relation(fields: [laboratoryRequestId], references: [id])
+
+  @@map("laboratory_results")
+}
+
+// --------------------------------------------------
+// Sinistros (secção 18 do briefing original)
+// --------------------------------------------------
+
+model Claim {
+  id              String    @id @default(uuid())
+  organizationId  String    @map("organization_id")
+  claimNumber     String    @unique @map("claim_number")
+  insuredMemberId String    @map("insured_member_id")
+  policyId        String?   @map("policy_id")
+  providerId      String?   @map("provider_id")
+  occurrenceType  String?   @map("occurrence_type")
+  occurrenceDate  DateTime? @map("occurrence_date")
+  location        String?
+  diagnosis       String?
+  requestedValue  Decimal?  @map("requested_value") @db.Decimal(14, 2)
+  approvedValue   Decimal?  @map("approved_value") @db.Decimal(14, 2)
+  status          String    @default("submitted")
+  // submitted | triage | in_review | clinical_audit | financial_audit | approved | rejected | paid | closed
+  analystNotes    String?   @map("analyst_notes")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  createdBy String?   @map("created_by")
+  updatedBy String?   @map("updated_by")
+
+  organization  Organization   @relation(fields: [organizationId], references: [id])
+  insuredMember InsuredMember  @relation(fields: [insuredMemberId], references: [id])
+  policy        Policy?        @relation(fields: [policyId], references: [id])
+  provider      Provider?      @relation(fields: [providerId], references: [id])
+
+  @@index([organizationId])
+  @@map("claims")
+}
+
+// --------------------------------------------------
+// Reembolsos (secção 19 do briefing original)
+// --------------------------------------------------
+
+model Reimbursement {
+  id                  String    @id @default(uuid())
+  organizationId      String    @map("organization_id")
+  reimbursementNumber String    @unique @map("reimbursement_number")
+  insuredMemberId     String    @map("insured_member_id")
+  description         String?
+  requestedValue      Decimal   @map("requested_value") @db.Decimal(14, 2)
+  eligibleValue       Decimal?  @map("eligible_value") @db.Decimal(14, 2)
+  deductible          Decimal?  @db.Decimal(14, 2)
+  copayment           Decimal?  @db.Decimal(14, 2)
+  finalValue          Decimal?  @map("final_value") @db.Decimal(14, 2)
+  status              String    @default("submitted")
+  // submitted | under_validation | awaiting_documents | in_review | approved | partially_approved | rejected | paid | closed
+  bankDetails         String?   @map("bank_details")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  createdBy String?   @map("created_by")
+  updatedBy String?   @map("updated_by")
+
+  organization  Organization  @relation(fields: [organizationId], references: [id])
+  insuredMember InsuredMember @relation(fields: [insuredMemberId], references: [id])
+
+  @@index([organizationId])
+  @@map("reimbursements")
+}
+
+// --------------------------------------------------
+// Facturação dos Prestadores (secção 17 do briefing original)
+// --------------------------------------------------
+
+model Invoice {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  providerId     String    @map("provider_id")
+  invoiceNumber  String    @map("invoice_number")
+  periodStart    DateTime  @map("period_start")
+  periodEnd      DateTime  @map("period_end")
+  grossValue     Decimal   @map("gross_value") @db.Decimal(14, 2)
+  deductions     Decimal?  @db.Decimal(14, 2)
+  approvedValue  Decimal?  @map("approved_value") @db.Decimal(14, 2)
+  netValue       Decimal?  @map("net_value") @db.Decimal(14, 2)
+  status         String    @default("submitted")
+  // submitted | under_review | approved | partially_approved | rejected | paid
+  paidAt         DateTime? @map("paid_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  createdBy String?  @map("created_by")
+  updatedBy String?  @map("updated_by")
+
+  organization Organization  @relation(fields: [organizationId], references: [id])
+  provider     Provider      @relation(fields: [providerId], references: [id])
+  items        InvoiceItem[]
+
+  @@unique([providerId, invoiceNumber])
+  @@index([organizationId])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id              String   @id @default(uuid())
+  invoiceId       String   @map("invoice_id")
+  description     String
+  insuredMemberId String?  @map("insured_member_id")
+  value           Decimal  @db.Decimal(14, 2)
+  deduction       Decimal? @db.Decimal(14, 2)
+  deductionReason String?  @map("deduction_reason")
+  approvedValue   Decimal? @map("approved_value") @db.Decimal(14, 2)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+  insuredMember InsuredMember? @relation(fields: [insuredMemberId], references: [id])
+
+  @@map("invoice_items")
+}
+
+// --------------------------------------------------
+// Mensalidades e Pagamentos (secção 16 do briefing original)
+// --------------------------------------------------
+
+model Premium {
+  id              String    @id @default(uuid())
+  organizationId  String    @map("organization_id")
+  insuredMemberId String?   @map("insured_member_id")
+  companyId       String?   @map("company_id")
+  policyId        String?   @map("policy_id")
+  referenceMonth  DateTime  @map("reference_month")
+  dueDate         DateTime  @map("due_date")
+  value           Decimal   @db.Decimal(14, 2)
+  lateFee         Decimal?  @map("late_fee") @db.Decimal(14, 2)
+  discount        Decimal?  @db.Decimal(14, 2)
+  status          String    @default("pending") // paid | partially_paid | pending | overdue | cancelled | exempt
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization  Organization   @relation(fields: [organizationId], references: [id])
+  insuredMember InsuredMember? @relation(fields: [insuredMemberId], references: [id])
+  company       Company?       @relation(fields: [companyId], references: [id])
+  policy        Policy?        @relation(fields: [policyId], references: [id])
+  payments      Payment[]
+
+  @@index([organizationId])
+  @@map("premiums")
+}
+
+model Payment {
+  id            String   @id @default(uuid())
+  premiumId     String   @map("premium_id")
+  amount        Decimal  @db.Decimal(14, 2)
+  method        String   // bank_debit | transfer | cash | payment_reference | mobile_wallet
+  paidAt        DateTime @default(now()) @map("paid_at")
+  receiptNumber String?  @map("receipt_number")
+  registeredBy  String?  @map("registered_by")
+
+  premium Premium @relation(fields: [premiumId], references: [id])
+
+  @@map("payments")
+}
+
+// --------------------------------------------------
+// Organização (preparado para multi-organização)
+// --------------------------------------------------
+
+model Organization {
+  id        String             @id @default(uuid())
+  name      String
+  legalName String?            @map("legal_name")
+  nif       String?            @unique
+  email     String?
+  phone     String?
+  address   String?
+  logoUrl   String?            @map("logo_url")
+  status    OrganizationStatus @default(active)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  users         User[]
+  roles         Role[]
+  auditLogs     AuditLog[]
+  systemSettings SystemSetting[]
+  syncQueueItems SyncQueue[]
+  insuredMembers InsuredMember[]
+  companies      Company[]
+  healthPlans    HealthPlan[]
+  policies       Policy[]
+  providers      Provider[]
+  authorizations Authorization[]
+  consultations  Consultation[]
+  medicines      Medicine[]
+  laboratoryRequests LaboratoryRequest[]
+  claims         Claim[]
+  reimbursements Reimbursement[]
+  invoices       Invoice[]
+  premiums       Premium[]
+
+  @@map("organizations")
+}
+
+// --------------------------------------------------
+// Utilizadores
+// --------------------------------------------------
+
+model User {
+  id                  String     @id @default(uuid())
+  organizationId      String     @map("organization_id")
+  fullName            String     @map("full_name")
+  email               String     @unique
+  phone               String?
+  passwordHash        String     @map("password_hash")
+  avatarUrl           String?    @map("avatar_url")
+  status              UserStatus @default(active)
+  twoFactorEnabled    Boolean    @default(false) @map("two_factor_enabled")
+  mustChangePassword  Boolean    @default(false) @map("must_change_password")
+  lastLoginAt         DateTime?  @map("last_login_at")
+  failedLoginAttempts Int        @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime?  @map("locked_until")
+
+  // Ligação opcional a um Segurado ou Prestador, para acesso ao portal de
+  // auto-serviço (secção "extras" além do briefing original). Um utilizador
+  // administrativo normal não tem nenhum destes campos preenchidos.
+  insuredMemberId     String?    @map("insured_member_id")
+  providerId          String?    @map("provider_id")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  createdBy String?   @map("created_by")
+  updatedBy String?   @map("updated_by")
+
+  organization  Organization   @relation(fields: [organizationId], references: [id])
+  roles         UserRole[]
+  refreshTokens RefreshToken[]
+  devices       Device[]
+  auditLogs     AuditLog[]
+  passwordResetTokens PasswordResetToken[]
+  insuredMember InsuredMember? @relation(fields: [insuredMemberId], references: [id])
+  provider      Provider?      @relation(fields: [providerId], references: [id])
+
+  @@index([organizationId])
+  @@map("users")
+}
+
+// --------------------------------------------------
+// Perfis (Roles)
+// --------------------------------------------------
+
+model Role {
+  id             String     @id @default(uuid())
+  organizationId String     @map("organization_id")
+  name           String
+  code           String     @unique
+  description    String?
+  isSystem       Boolean    @default(false) @map("is_system") // perfis do sistema não podem ser eliminados
+  status         RoleStatus @default(active)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  users        UserRole[]
+  permissions  RolePermission[]
+
+  @@index([organizationId])
+  @@map("roles")
+}
+
+// --------------------------------------------------
+// Permissões (catálogo global, não pertence a uma organização)
+// --------------------------------------------------
+
+model Permission {
+  id          String @id @default(uuid())
+  module      String // ex: users, roles, permissions, dashboard, audit, settings, profile
+  action      String // ex: view, create, update, delete, activate, suspend, export, print
+  code        String @unique // ex: users.create
+  description String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  roles RolePermission[]
+
+  @@index([module])
+  @@map("permissions")
+}
+
+// --------------------------------------------------
+// Tabelas de junção
+// --------------------------------------------------
+
+model UserRole {
+  id     String @id @default(uuid())
+  userId String @map("user_id")
+  roleId String @map("role_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+  role Role @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  id           String @id @default(uuid())
+  roleId       String @map("role_id")
+  permissionId String @map("permission_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  role       Role       @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// --------------------------------------------------
+// Sessões: Refresh Tokens e Dispositivos
+// --------------------------------------------------
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  tokenHash String    @map("token_hash") // nunca guardar o token em texto simples
+  deviceId  String?   @map("device_id")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user   User    @relation(fields: [userId], references: [id])
+  device Device? @relation(fields: [deviceId], references: [id])
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// Token de recuperação de palavra-passe (secção 7). Guardado sempre como
+// hash — nunca em texto simples — e com expiração curta.
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+model Device {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  deviceName      String?  @map("device_name")
+  deviceType      String?  @map("device_type") // desktop | mobile | tablet
+  browser         String?
+  operatingSystem String?  @map("operating_system")
+  lastIpAddress   String?  @map("last_ip_address")
+  lastAccessAt    DateTime? @map("last_access_at")
+  isTrusted       Boolean  @default(false) @map("is_trusted")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user          User           @relation(fields: [userId], references: [id])
+  refreshTokens RefreshToken[]
+
+  @@index([userId])
+  @@map("devices")
+}
+
+// --------------------------------------------------
+// Auditoria
+// --------------------------------------------------
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  organizationId String?  @map("organization_id")
+  userId         String?  @map("user_id")
+  action         String   // ex: login, logout, login_failed, user.create, role.update
+  module         String   // ex: auth, users, roles, permissions, settings
+  entity         String?  // ex: User, Role
+  entityId       String?  @map("entity_id")
+  description    String?
+  oldValues      Json?    @map("old_values")
+  newValues      Json?    @map("new_values")
+  ipAddress      String?  @map("ip_address")
+  userAgent      String?  @map("user_agent")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  user         User?         @relation(fields: [userId], references: [id])
+
+  // Nenhum utilizador pode editar ou eliminar logs de auditoria pela aplicação
+  // (nenhuma rota de update/delete é exposta para este modelo).
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([module])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// --------------------------------------------------
+// Configurações do sistema
+// --------------------------------------------------
+
+model SystemSetting {
+  id             String  @id @default(uuid())
+  organizationId String  @map("organization_id")
+  key            String
+  value          Json
+  category       String? // ex: organization, security, localization, session
+  description    String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, key])
+  @@map("system_settings")
+}
+
+// --------------------------------------------------
+// Fila de sincronização (base para o offline-first — Bloco 8)
+// --------------------------------------------------
+
+model SyncQueue {
+  id             String        @id @default(uuid())
+  organizationId String        @map("organization_id")
+  userId         String?       @map("user_id")
+  deviceId       String?       @map("device_id")
+  operationId    String        @unique @map("operation_id") // gerado no cliente, evita duplicação
+  entity         String
+  entityId       String?       @map("entity_id")
+  operation      SyncOperation
+  payload        Json
+  status         SyncStatus    @default(pending)
+  retryCount     Int           @default(0) @map("retry_count")
+  errorMessage   String?       @map("error_message")
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  processedAt DateTime? @map("processed_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, status])
+  @@map("sync_queue")
+}

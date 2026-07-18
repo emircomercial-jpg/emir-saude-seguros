@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="pt">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EMIR SAÚDE SEGUROS — Sem ligação</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Inter, system-ui, sans-serif;
+        background: #0F4C81;
+        color: white;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+      }
+      .card { max-width: 360px; padding: 2rem; }
+      h1 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+      p { color: #cbd5e1; font-size: 0.9rem; }
+      button {
+        margin-top: 1.5rem;
+        background: #4CAF50;
+        color: white;
+        border: none;
+        padding: 0.6rem 1.5rem;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Sem ligação à internet</h1>
+      <p>
+        Não foi possível estabelecer ligação ao servidor. Alguns dados
+        previamente carregados podem continuar disponíveis para consulta.
+        Operações de criação e edição exigem ligação à internet.
+      </p>
+      <button onclick="window.location.reload()">Tentar novamente</button>
+    </div>
+  </body>
+</html>

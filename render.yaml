@@ -1,0 +1,75 @@
+# Blueprint do Render (https://render.com/docs/blueprint-spec) para o
+# backend do EMIR SAÚDE SEGUROS.
+#
+# Como usar:
+# 1. Criar uma base de dados PostgreSQL gratuita no Neon (https://neon.tech)
+#    e copiar a "connection string" fornecida.
+# 2. No Render, "New +" → "Blueprint", ligar este repositório Git.
+# 3. O Render detecta este ficheiro automaticamente e propõe criar o
+#    serviço abaixo. Preencher as variáveis marcadas com `sync: false`
+#    manualmente no painel do Render antes do primeiro deploy (ver
+#    documentation/deploy-free-hosting.md para o valor exacto de cada uma).
+# 4. Depois do primeiro deploy com sucesso, correr uma única vez (a partir
+#    do "Shell" do próprio serviço no painel do Render):
+#      npx prisma migrate deploy
+#      npx prisma db seed
+
+services:
+  - type: web
+    name: emir-saude-backend
+    runtime: docker
+    plan: free
+    region: frankfurt
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SWAGGER_ENABLED
+        value: "false"
+
+      # Preencher manualmente no painel do Render (nunca commitar valores reais):
+      - key: DATABASE_URL
+        sync: false # connection string do Neon
+      - key: CORS_ORIGIN
+        sync: false # URL exacto do frontend, ex: https://emirsaude.pages.dev
+      - key: APP_URL
+        sync: false # mesmo valor de CORS_ORIGIN
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false # senha forte, só usada uma vez pelo seed
+      - key: ORGANIZATION_NIF
+        sync: false
+
+      # Gerados automaticamente pelo Render — nunca precisas de definir estes.
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: COOKIE_SECRET
+        generateValue: true
+
+      # Valores razoáveis por omissão — ajustar se necessário.
+      - key: JWT_ACCESS_EXPIRES_IN
+        value: 15m
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 7d
+      - key: MAX_LOGIN_ATTEMPTS
+        value: "5"
+      - key: LOGIN_LOCK_MINUTES
+        value: "15"
+      - key: RATE_LIMIT_TTL_SECONDS
+        value: "60"
+      - key: RATE_LIMIT_MAX
+        value: "100"
+      - key: TIMEZONE
+        value: Africa/Luanda
+      - key: DEFAULT_LANGUAGE
+        value: pt
+      - key: DEFAULT_CURRENCY
+        value: AOA
+      - key: APP_NAME
+        value: "EMIR SAÚDE SEGUROS"

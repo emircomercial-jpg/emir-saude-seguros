@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Tema claro — variáveis usadas pelos componentes Shadcn UI, calibradas
+       para se aproximarem da paleta institucional definida na secção 15. */
+    --background: 210 20% 98%;       /* próximo de #F4F6F8 */
+    --foreground: 220 26% 18%;       /* próximo de #1F2937 */
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 26% 18%;
+
+    --primary: 205 76% 28%;          /* #0F4C81 — azul institucional */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 199 66% 62%;        /* #5BB6E6 — azul-claro */
+    --secondary-foreground: 220 26% 18%;
+
+    --muted: 210 16% 93%;
+    --muted-foreground: 210 9% 40%;  /* próximo de #5F6B76 */
+
+    --accent: 122 39% 49%;           /* #4CAF50 — verde saúde */
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 4 62% 55%;        /* #D64545 */
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 16% 88%;
+    --input: 210 16% 88%;
+    --ring: 205 76% 28%;
+
+    --radius: 0.5rem;
+  }
+
+  /* Preparação para tema escuro (secção 14) — activado adicionando a classe
+     "dark" ao elemento <html>; ainda não exposto na interface nesta fase. */
+  .dark {
+    --background: 220 26% 10%;
+    --foreground: 210 20% 96%;
+
+    --card: 220 24% 14%;
+    --card-foreground: 210 20% 96%;
+
+    --primary: 205 70% 45%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 199 50% 40%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 220 20% 20%;
+    --muted-foreground: 210 10% 70%;
+
+    --accent: 122 35% 40%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 4 55% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 20% 24%;
+    --input: 220 20% 24%;
+    --ring: 205 70% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
