@@ -78,6 +78,21 @@ export class IntegrationsService {
   // actualiza o registo existente, nunca duplica (upsert pela chave
   // composta organizationId+source+externalId).
   async receiveInvoice(organizationId: string, dto: ReceiveInvoiceDto, source = SOURCE_DEFAULT) {
+    // Cruzamento automático pelo NIF do cliente: se corresponder a um
+    // Segurado ou a uma Empresa Cliente já existente, a factura fica
+    // ligada a esse registo — sem o sistema externo precisar de saber
+    // nada sobre os IDs internos do EMIR SAÚDE SEGUROS.
+    let insuredMemberId: string | null = null;
+    let companyId: string | null = null;
+    if (dto.customerTaxId) {
+      const [insured, company] = await Promise.all([
+        this.prisma.insuredMember.findFirst({ where: { organizationId, nif: dto.customerTaxId, deletedAt: null } }),
+        this.prisma.company.findFirst({ where: { organizationId, nif: dto.customerTaxId, deletedAt: null } }),
+      ]);
+      insuredMemberId = insured?.id ?? null;
+      companyId = company?.id ?? null;
+    }
+
     const invoice = await this.prisma.externalInvoice.upsert({
       where: {
         organizationId_source_externalId: { organizationId, source, externalId: dto.externalId },
@@ -92,6 +107,8 @@ export class IntegrationsService {
         status: dto.status,
         items: (dto.items as any) ?? undefined,
         receivedAt: new Date(),
+        insuredMemberId,
+        companyId,
       },
       create: {
         organizationId,
@@ -105,6 +122,8 @@ export class IntegrationsService {
         totalValue: dto.totalValue,
         status: dto.status,
         items: (dto.items as any) ?? undefined,
+        insuredMemberId,
+        companyId,
       },
     });
 

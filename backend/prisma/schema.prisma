@@ -130,6 +130,7 @@ model InsuredMember {
   premiums       Premium[]
   portalUsers    User[]
   invoiceItems   InvoiceItem[]
+  externalInvoices ExternalInvoice[]
 
   @@index([organizationId])
   @@map("insured_members")
@@ -207,6 +208,7 @@ model Company {
   plan         HealthPlan?  @relation(fields: [planId], references: [id])
   policies     Policy[]
   premiums     Premium[]
+  externalInvoices ExternalInvoice[]
 
   @@index([organizationId])
   @@map("companies")
@@ -1104,11 +1106,22 @@ model ExternalInvoice {
   // draft | issued | paid | cancelled
   items          Json?
 
+  // Cruzamento automático pelo NIF do cliente (customerTaxId) com os
+  // Segurados/Empresas já existentes no EMIR SAÚDE SEGUROS, feito no
+  // momento em que a factura é recebida — permite, por exemplo, ver todas
+  // as facturas externas de um segurado directamente na sua ficha, sem
+  // depender de o sistema externo saber nada sobre os IDs internos do
+  // EMIR SAÚDE SEGUROS (só precisa de indicar o NIF, que ele já tem).
+  insuredMemberId String? @map("insured_member_id")
+  companyId       String? @map("company_id")
+
   receivedAt DateTime @default(now()) @map("received_at")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization  Organization    @relation(fields: [organizationId], references: [id])
+  insuredMember InsuredMember?  @relation(fields: [insuredMemberId], references: [id])
+  company       Company?        @relation(fields: [companyId], references: [id])
 
   // A combinação origem+ID externo é única — reenviar a mesma factura
   // (mesmo externalId) actualiza o registo em vez de duplicar

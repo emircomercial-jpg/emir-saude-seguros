@@ -73,6 +73,16 @@ necessário.
   formatados" — o corpo da resposta inclui o campo `errors` com o detalhe.
 - Reenviar em caso de falha de rede é seguro, graças à idempotência.
 
+## 6. Cruzamento automático por NIF
+
+Se `customerTaxId` corresponder ao NIF de um Segurado ou de uma Empresa
+Cliente já existente no EMIR SAÚDE SEGUROS, a factura recebida fica
+automaticamente ligada a esse registo — sem o sistema externo precisar de
+conhecer nenhum ID interno do EMIR SAÚDE SEGUROS, só o NIF (que já tem).
+Isto acontece em cada recepção/actualização da factura, por isso mesmo que
+o Segurado seja registado depois da primeira factura chegar, uma
+actualização posterior da mesma factura já fica correctamente ligada.
+
 ## 5. Gestão de chaves (equipa EMIR SAÚDE SEGUROS)
 
 Em **Integrações** (menu lateral, requer permissão `integrations.manage`):
@@ -82,3 +92,4 @@ Em **Integrações** (menu lateral, requer permissão `integrations.manage`):
 
 As facturas já recebidas aparecem na mesma página (requer permissão
 `integrations.view`).
+

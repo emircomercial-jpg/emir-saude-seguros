@@ -10,6 +10,8 @@ describe('IntegrationsService', () => {
     prismaMock = {
       integrationApiKey: { create: jest.fn(), findMany: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
       externalInvoice: { upsert: jest.fn(), findMany: jest.fn(), count: jest.fn(), findFirst: jest.fn() },
+      insuredMember: { findFirst: jest.fn().mockResolvedValue(null) },
+      company: { findFirst: jest.fn().mockResolvedValue(null) },
     };
     auditMock = { log: jest.fn() };
     service = new IntegrationsService(prismaMock, auditMock);
@@ -73,6 +75,44 @@ describe('IntegrationsService', () => {
 
       expect(auditMock.log).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'integration.invoice_received', userId: undefined }),
+      );
+    });
+
+    it('cross-references the customer NIF with an existing Segurado, linking the invoice', async () => {
+      prismaMock.insuredMember.findFirst.mockResolvedValue({ id: 'insured-1' });
+      prismaMock.externalInvoice.upsert.mockResolvedValue({ id: 'inv-1', ...dto });
+
+      await service.receiveInvoice('org-1', { ...dto, customerTaxId: '5001234567' } as any);
+
+      expect(prismaMock.externalInvoice.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({ insuredMemberId: 'insured-1', companyId: null }),
+        }),
+      );
+    });
+
+    it('cross-references the customer NIF with an existing Empresa, linking the invoice', async () => {
+      prismaMock.company.findFirst.mockResolvedValue({ id: 'company-1' });
+      prismaMock.externalInvoice.upsert.mockResolvedValue({ id: 'inv-1', ...dto });
+
+      await service.receiveInvoice('org-1', { ...dto, customerTaxId: '5009876543' } as any);
+
+      expect(prismaMock.externalInvoice.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({ insuredMemberId: null, companyId: 'company-1' }),
+        }),
+      );
+    });
+
+    it('leaves both cross-reference fields null when the NIF matches nothing', async () => {
+      prismaMock.externalInvoice.upsert.mockResolvedValue({ id: 'inv-1', ...dto });
+
+      await service.receiveInvoice('org-1', { ...dto, customerTaxId: '0000000000' } as any);
+
+      expect(prismaMock.externalInvoice.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({ insuredMemberId: null, companyId: null }),
+        }),
       );
     });
   });
