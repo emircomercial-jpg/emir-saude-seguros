@@ -11,6 +11,28 @@ import path from 'path';
 // são geridos explicitamente pelo IndexedDB (ver src/offline/cacheService.ts),
 // nunca pelo cache do Service Worker.
 export default defineConfig({
+  // Alvo de compilação: cobre Chrome/Edge 87+, Firefox 78+, Safari 14+ e
+  // equivalentes móveis (essencialmente todos os browsers em uso normal
+  // desde 2021) — sem incluir polyfills pesados para browsers
+  // verdadeiramente obsoletos, que aumentariam o tamanho do pacote para
+  // todos só para servir uma fracção mínima de utilizadores.
+  build: {
+    target: 'es2020',
+    rollupOptions: {
+      output: {
+        // Separa as bibliotecas externas do código da aplicação. Estas
+        // mudam muito menos vezes do que o código próprio — assim, quando
+        // publicamos uma pequena correcção, o browser só descarrega de
+        // novo o pedaço pequeno que mudou, não o React inteiro outra vez.
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-query': ['@tanstack/react-query'],
+          'vendor-charts': ['recharts'],
+          'vendor-forms': ['react-hook-form', '@hookform/resolvers', 'zod'],
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     VitePWA({

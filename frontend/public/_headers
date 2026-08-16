@@ -1,0 +1,19 @@
+# Cache agressivo para ficheiros com hash no nome (JS/CSS gerados pelo
+# build) — o nome muda sempre que o conteúdo muda, por isso é seguro
+# dizer ao browser para os guardar "para sempre" e nunca os pedir de novo
+# desnecessariamente. Isto reduz muito o consumo de dados em visitas
+# repetidas (o utilizador só descarrega o que realmente mudou).
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/icons/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/logo/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# O HTML principal nunca deve ficar em cache prolongado — tem de ser
+# sempre verificado, para os utilizadores receberem sempre a versão mais
+# recente da aplicação assim que publicamos uma actualização.
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate

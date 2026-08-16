@@ -791,6 +791,8 @@ model Organization {
   reimbursements Reimbursement[]
   invoices       Invoice[]
   premiums       Premium[]
+  integrationApiKeys IntegrationApiKey[]
+  externalInvoices   ExternalInvoice[]
 
   @@map("organizations")
 }
@@ -1054,4 +1056,64 @@ model SyncQueue {
 
   @@index([organizationId, status])
   @@map("sync_queue")
+}
+
+// --------------------------------------------------
+// Integração com sistemas externos (facturação geral)
+// --------------------------------------------------
+// Permite que um sistema externo (ex: um sistema de facturação comercial
+// separado, fora do âmbito de seguros) envie facturas para aqui via
+// webhook, e que o EMIR SAÚDE SEGUROS as consulte — sem misturar estes
+// dados comerciais genéricos com o módulo de Facturação já existente
+// (que é especificamente sobre facturação de PRESTADORES de saúde).
+
+model IntegrationApiKey {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  name           String
+  // Nunca se guarda a chave em texto simples — só o hash (SHA-256), tal
+  // como os refresh tokens. A chave real só é mostrada uma vez, no
+  // momento em que é criada.
+  keyHash        String    @unique @map("key_hash")
+  lastUsedAt     DateTime? @map("last_used_at")
+  revokedAt      DateTime? @map("revoked_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  createdBy String?  @map("created_by")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@map("integration_api_keys")
+}
+
+model ExternalInvoice {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  // Nome do sistema de origem (ex: "sistema-facturacao") — permite, no
+  // futuro, receber de mais do que uma fonte externa sem ambiguidade.
+  source         String
+  externalId     String    @map("external_id")
+  invoiceNumber  String    @map("invoice_number")
+  customerName   String    @map("customer_name")
+  customerTaxId  String?   @map("customer_tax_id")
+  issueDate      DateTime  @map("issue_date")
+  dueDate        DateTime? @map("due_date")
+  totalValue     Decimal   @map("total_value") @db.Decimal(14, 2)
+  status         String    @default("issued")
+  // draft | issued | paid | cancelled
+  items          Json?
+
+  receivedAt DateTime @default(now()) @map("received_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  // A combinação origem+ID externo é única — reenviar a mesma factura
+  // (mesmo externalId) actualiza o registo em vez de duplicar
+  // (idempotência, tal como pedido no contrato de integração).
+  @@unique([organizationId, source, externalId])
+  @@index([organizationId])
+  @@map("external_invoices")
 }

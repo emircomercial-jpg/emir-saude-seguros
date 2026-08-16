@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Shield, Users2, Building2, ShieldPlus, FileText, CreditCard,
   ClipboardList, Hospital, Stethoscope, Pill, FlaskConical, FileHeart, Undo2,
-  Receipt, Wallet, BarChart3, History, UserCog, KeyRound, Settings, X,
+  Receipt, Wallet, BarChart3, History, UserCog, KeyRound, Settings, X, Plug,
 } from 'lucide-react';
 import { useUiStore } from '@/stores/uiStore';
 import { cn } from '@/utils/cn';
@@ -13,9 +13,9 @@ import { cn } from '@/utils/cn';
 // sistema, mas nunca abrindo páginas quebradas (ficam desactivados).
 const NAV_ITEMS: { to: string; label: string; icon: any; enabled: boolean }[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, enabled: true },
-  { to: '/seguros', label: 'Seguros', icon: Shield, enabled: false },
+  { to: '/seguros', label: 'Seguros', icon: Shield, enabled: true },
   { to: '/segurados', label: 'Segurados', icon: Users2, enabled: true },
-  { to: '/dependentes', label: 'Dependentes', icon: Users2, enabled: false },
+  { to: '/dependentes', label: 'Dependentes', icon: Users2, enabled: true },
   { to: '/empresas', label: 'Empresas', icon: Building2, enabled: true },
   { to: '/planos', label: 'Planos', icon: ShieldPlus, enabled: true },
   { to: '/apolices', label: 'Apólices', icon: FileText, enabled: true },
@@ -34,6 +34,7 @@ const NAV_ITEMS: { to: string; label: string; icon: any; enabled: boolean }[] = 
   { to: '/users', label: 'Utilizadores', icon: UserCog, enabled: true },
   { to: '/roles', label: 'Perfis e Permissões', icon: KeyRound, enabled: true },
   { to: '/settings', label: 'Configurações', icon: Settings, enabled: true },
+  { to: '/integracoes', label: 'Integrações', icon: Plug, enabled: true },
 ];
 
 function NavItems({ onNavigate }: { onNavigate?: () => void }) {
