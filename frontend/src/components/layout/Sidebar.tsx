@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Shield, Users2, Building2, ShieldPlus, FileText, CreditCard,
   ClipboardList, Hospital, Stethoscope, Pill, FlaskConical, FileHeart, Undo2,
-  Receipt, Wallet, BarChart3, History, UserCog, KeyRound, Settings, X, Plug,
+  Receipt, Wallet, BarChart3, History, UserCog, KeyRound, Settings, X, Plug, Handshake,
 } from 'lucide-react';
 import { useUiStore } from '@/stores/uiStore';
 import { cn } from '@/utils/cn';
@@ -35,6 +35,7 @@ const NAV_ITEMS: { to: string; label: string; icon: any; enabled: boolean }[] = 
   { to: '/roles', label: 'Perfis e Permissões', icon: KeyRound, enabled: true },
   { to: '/settings', label: 'Configurações', icon: Settings, enabled: true },
   { to: '/integracoes', label: 'Integrações', icon: Plug, enabled: true },
+  { to: '/convenios', label: 'Convénios', icon: Handshake, enabled: true },
 ];
 
 function NavItems({ onNavigate }: { onNavigate?: () => void }) {

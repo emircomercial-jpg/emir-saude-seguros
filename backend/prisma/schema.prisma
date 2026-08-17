@@ -795,6 +795,7 @@ model Organization {
   premiums       Premium[]
   integrationApiKeys IntegrationApiKey[]
   externalInvoices   ExternalInvoice[]
+  insuranceAgreements InsuranceAgreement[]
 
   @@map("organizations")
 }
@@ -1129,4 +1130,45 @@ model ExternalInvoice {
   @@unique([organizationId, source, externalId])
   @@index([organizationId])
   @@map("external_invoices")
+}
+
+// --------------------------------------------------
+// Convénios com outras seguradoras
+// --------------------------------------------------
+// Acordos institucionais entre a EMIR SAÚDE SEGUROS e OUTRAS agências
+// seguradoras (não confundir com "Prestadores" — clínicas/hospitais/
+// farmácias — nem com "Empresas" — clientes que contratam apólices). Ex:
+// partilha de risco, reciprocidade de cobertura, encaminhamento de
+// clientes entre seguradoras parceiras.
+model InsuranceAgreement {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+
+  agencyName    String @map("agency_name")
+  agencyNif     String? @map("agency_nif")
+  agreementType String @map("agreement_type")
+  // reciprocal_coverage | reinsurance | referral | co_insurance | other
+
+  contactName  String? @map("contact_name")
+  contactEmail String? @map("contact_email")
+  contactPhone String? @map("contact_phone")
+
+  startDate DateTime  @map("start_date")
+  endDate   DateTime? @map("end_date")
+  status    String    @default("active")
+  // active | suspended | expired | cancelled
+
+  scope String? // âmbito/cobertura do acordo, em texto livre
+  notes String?
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  createdBy String?   @map("created_by")
+  updatedBy String?   @map("updated_by")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@map("insurance_agreements")
 }

@@ -35,6 +35,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { ReportsModule } from './reports/reports.module';
 import { PortalModule } from './portal/portal.module';
 import { IntegrationsModule } from './integrations/integrations.module';
+import { AgreementsModule } from './agreements/agreements.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 
@@ -88,6 +89,7 @@ import { PermissionsGuard } from './common/guards/permissions.guard';
     ReportsModule,
     PortalModule,
     IntegrationsModule,
+    AgreementsModule,
   ],
   providers: [
     // Guard global de rate limiting.

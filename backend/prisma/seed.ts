@@ -87,6 +87,10 @@ const PERMISSIONS: { module: string; action: string }[] = [
   { module: 'reports', action: 'view' },
   { module: 'integrations', action: 'view' },
   { module: 'integrations', action: 'manage' },
+  { module: 'agreements', action: 'view' },
+  { module: 'agreements', action: 'create' },
+  { module: 'agreements', action: 'update' },
+  { module: 'agreements', action: 'delete' },
 ];
 
 // Perfis iniciais (secção 6). "Superadministrador" é sempre um perfil de
