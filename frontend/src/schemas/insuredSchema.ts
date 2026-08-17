@@ -12,5 +12,18 @@ export const createInsuredSchema = z.object({
   province: z.string().optional(),
   municipality: z.string().optional(),
   address: z.string().optional(),
+  // Obrigatório: sem plano, não há registo completo (o objectivo deste
+  // formulário é sair já com apólice e cartão emitidos).
+  planId: z.string().min(1, 'Escolha um plano — é obrigatório para emitir a apólice e o cartão.'),
+  dependents: z
+    .array(
+      z.object({
+        relationship: z.enum(['spouse', 'child', 'parent', 'sibling', 'other']),
+        fullName: z.string().min(2, 'Indique o nome do dependente.'),
+        birthDate: z.string().min(1, 'Indique a data de nascimento do dependente.'),
+        sex: z.enum(['M', 'F']),
+      }),
+    )
+    .optional(),
 });
 export type CreateInsuredFormValues = z.infer<typeof createInsuredSchema>;

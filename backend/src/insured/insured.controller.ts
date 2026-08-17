@@ -5,6 +5,7 @@ import { CreateInsuredDto } from './dto/create-insured.dto';
 import { UpdateInsuredDto } from './dto/update-insured.dto';
 import { QueryInsuredDto } from './dto/query-insured.dto';
 import { CreateDependentDto } from './dto/create-dependent.dto';
+import { RegisterInsuredDto } from './dto/register-insured.dto';
 import { RequirePermissions } from '../common/decorators/permissions.decorator';
 import { CurrentUser, CurrentUserPayload } from '../common/decorators/current-user.decorator';
 
@@ -32,6 +33,17 @@ export class InsuredController {
   async create(@Body() dto: CreateInsuredDto, @CurrentUser() user: CurrentUserPayload) {
     const data = await this.insuredService.create(user.organizationId, dto, user.userId);
     return { data, message: 'Segurado criado com sucesso.' };
+  }
+
+  // Registo prático "tudo num só ecrã": cria o Segurado, obriga a escolha
+  // de um Plano (do qual nasce logo uma Apólice), emite de imediato o
+  // Cartão de Seguro, e inclui os Dependentes indicados — tudo numa única
+  // transacção (ou fica tudo criado, ou nada fica).
+  @Post('register')
+  @RequirePermissions('insured.create')
+  async registerComplete(@Body() dto: RegisterInsuredDto, @CurrentUser() user: CurrentUserPayload) {
+    const data = await this.insuredService.registerComplete(user.organizationId, dto, user.userId);
+    return { data, message: `Segurado registado com sucesso — apólice ${data.policy.policyNumber} e cartão ${data.card.cardNumber} emitidos.` };
   }
 
   @Patch(':id')

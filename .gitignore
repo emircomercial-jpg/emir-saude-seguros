@@ -8,3 +8,4 @@ coverage/
 frontend/dist/
 backend/dist/
 *.sql.gz
+*.tsbuildinfo

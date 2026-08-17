@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { PrismaService } from '../database/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { normalizePagination, buildPaginationMeta } from '../common/utils/pagination.util';
@@ -6,6 +7,7 @@ import { CreateInsuredDto } from './dto/create-insured.dto';
 import { UpdateInsuredDto } from './dto/update-insured.dto';
 import { QueryInsuredDto } from './dto/query-insured.dto';
 import { CreateDependentDto } from './dto/create-dependent.dto';
+import { RegisterInsuredDto } from './dto/register-insured.dto';
 
 const VALID_STATUSES = [
   'active', 'suspended', 'inactive', 'cancelled', 'waiting_period',
@@ -107,6 +109,107 @@ export class InsuredService {
     });
 
     return insured;
+  }
+
+  // Registo prático e completo de um novo integrante: Segurado + Apólice
+  // (a partir do Plano escolhido, obrigatório) + Cartão de Seguro emitido
+  // de imediato + Dependentes (se indicados) — tudo numa única transacção
+  // de base de dados: ou fica tudo criado com sucesso, ou nada fica criado
+  // (nunca um Segurado "órfão" sem apólice nem cartão, por exemplo, se o
+  // pedido falhar a meio).
+  async registerComplete(organizationId: string, dto: RegisterInsuredDto, createdBy: string) {
+    const duplicateDoc = await this.prisma.insuredMember.findUnique({ where: { idDocumentNumber: dto.idDocumentNumber } });
+    if (duplicateDoc) throw new ConflictException('Já existe um segurado com este Bilhete de Identidade.');
+
+    if (dto.nif) {
+      const duplicateNif = await this.prisma.insuredMember.findUnique({ where: { nif: dto.nif } });
+      if (duplicateNif) throw new ConflictException('Já existe um segurado com este NIF.');
+    }
+
+    const plan = await this.prisma.healthPlan.findFirst({ where: { id: dto.planId, organizationId, deletedAt: null } });
+    if (!plan) throw new BadRequestException('Plano não encontrado.');
+
+    const { planId, dependents, ...insuredData } = dto;
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const internalNumber = await this.generateInternalNumber(organizationId);
+
+      const insured = await tx.insuredMember.create({
+        data: {
+          organizationId,
+          internalNumber,
+          ...insuredData,
+          status: 'active', // já entra activo — o objectivo deste fluxo é ficar operacional de imediato
+          birthDate: new Date(insuredData.birthDate),
+          idIssueDate: insuredData.idIssueDate ? new Date(insuredData.idIssueDate) : undefined,
+          idExpiryDate: insuredData.idExpiryDate ? new Date(insuredData.idExpiryDate) : undefined,
+          joinDate: insuredData.joinDate ? new Date(insuredData.joinDate) : undefined,
+          coverageStartDate: insuredData.coverageStartDate ? new Date(insuredData.coverageStartDate) : undefined,
+          coverageEndDate: insuredData.coverageEndDate ? new Date(insuredData.coverageEndDate) : undefined,
+          createdBy,
+        },
+      });
+
+      // Apólice — datas por omissão práticas: início hoje, um ano de
+      // validade, valor igual à mensalidade do plano escolhido.
+      const policyCount = await tx.policy.count({ where: { organizationId } });
+      const year = new Date().getFullYear();
+      const policyNumber = `AP-${year}-${String(policyCount + 1).padStart(6, '0')}`;
+      const today = new Date();
+      const oneYearLater = new Date(today);
+      oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
+
+      const policy = await tx.policy.create({
+        data: {
+          organizationId,
+          policyNumber,
+          planId,
+          issueDate: today,
+          startDate: today,
+          endDate: oneYearLater,
+          value: plan.monthlyValue,
+          paymentMode: 'monthly',
+          createdBy,
+          members: { create: [{ insuredMemberId: insured.id }] },
+        },
+        include: { plan: true },
+      });
+
+      // Cartão de Seguro, emitido de imediato.
+      const cardExpiry = new Date(today);
+      cardExpiry.setFullYear(cardExpiry.getFullYear() + 1);
+      const card = await tx.insuranceCard.create({
+        data: {
+          insuredMemberId: insured.id,
+          cardNumber: `EMIR-${crypto.randomInt(100000000, 999999999)}`,
+          qrCodeToken: crypto.randomBytes(16).toString('hex'),
+          expiryDate: cardExpiry,
+        },
+      });
+
+      // Dependentes, se indicados.
+      const createdDependents: Awaited<ReturnType<typeof tx.dependent.create>>[] = [];
+      for (const dep of dependents ?? []) {
+        const dependent = await tx.dependent.create({
+          data: { insuredMemberId: insured.id, ...dep, relationship: dep.relationship as any, birthDate: new Date(dep.birthDate) },
+        });
+        createdDependents.push(dependent);
+      }
+
+      return { insured, policy, card, dependents: createdDependents };
+    });
+
+    await this.auditService.log({
+      organizationId,
+      userId: createdBy,
+      action: 'insured.register_complete',
+      module: 'insured',
+      entity: 'InsuredMember',
+      entityId: result.insured.id,
+      description: `Segurado "${result.insured.fullName}" (${result.insured.internalNumber}) registado com apólice "${result.policy.policyNumber}" e cartão "${result.card.cardNumber}"${result.dependents.length ? ` e ${result.dependents.length} dependente(s)` : ''}.`,
+    });
+
+    return result;
   }
 
   async update(id: string, organizationId: string, dto: UpdateInsuredDto, updatedBy: string) {

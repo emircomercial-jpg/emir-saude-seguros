@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Plus, Search, MoreVertical, UserPlus2, Loader2, Trash2, CreditCard, MessageCircle } from 'lucide-react';
+import { Plus, Search, MoreVertical, UserPlus2, Loader2, Trash2, CreditCard, MessageCircle, Users2, ShieldCheck } from 'lucide-react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
-  listInsured, createInsured, deleteInsured, setInsuredStatus, addDependent,
+  listInsured, registerInsured, deleteInsured, setInsuredStatus, addDependent,
   removeDependent, getInsured, type InsuredMember,
 } from '@/services/insuredService';
+import { listPlans } from '@/services/planService';
 import { issueCard } from '@/services/cardService';
 import { openWhatsApp } from '@/utils/whatsapp';
 import { createInsuredSchema, type CreateInsuredFormValues } from '@/schemas/insuredSchema';
@@ -20,6 +21,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFoo
 import { getApiErrorMessage } from '@/services/apiClient';
 import { toast } from '@/stores/toastStore';
 
+const RELATIONSHIP_LABELS: Record<string, string> = {
+  spouse: 'Cônjuge', child: 'Filho(a)', parent: 'Pai/Mãe', sibling: 'Irmão/Irmã', other: 'Outro',
+};
+
 const STATUS_LABELS: Record<string, string> = {
   active: 'Activo', suspended: 'Suspenso', inactive: 'Inactivo', cancelled: 'Cancelado',
   waiting_period: 'Em carência', expired: 'Expirado', pending_approval: 'Aguardando aprovação',
@@ -30,18 +35,28 @@ const STATUS_VARIANT: Record<string, any> = {
   waiting_period: 'default', expired: 'destructive', pending_approval: 'warning', blocked_nonpayment: 'destructive',
 };
 
+// Registo prático e completo: Segurado + Plano (obrigatório, gera logo a
+// Apólice) + Cartão de Seguro (emitido automaticamente) + Dependentes
+// (opcional, incluídos já aqui) — tudo num único ecrã, numa única acção,
+// em vez de obrigar a passar por Segurados → Apólices → Cartões
+// separadamente. Corresponde a POST /insured/register no backend, que faz
+// tudo numa única transacção (ou fica tudo criado, ou nada fica).
 function CreateInsuredDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateInsuredFormValues>({
+  const { register, handleSubmit, reset, control, formState: { errors } } = useForm<CreateInsuredFormValues>({
     resolver: zodResolver(createInsuredSchema),
+    defaultValues: { dependents: [] },
   });
+  const { fields, append, remove } = useFieldArray({ control, name: 'dependents' });
+
+  const { data: plans, isLoading: loadingPlans } = useQuery({ queryKey: ['plans-for-registration'], queryFn: listPlans, enabled: open });
 
   const mutation = useMutation({
-    mutationFn: (v: CreateInsuredFormValues) => createInsured({ ...v, email: v.email || undefined }),
-    onSuccess: () => {
-      toast.success('Segurado criado com sucesso.');
+    mutationFn: (v: CreateInsuredFormValues) => registerInsured({ ...v, email: v.email || undefined }),
+    onSuccess: (result) => {
+      toast.success(`Segurado registado — apólice ${result.policy.policyNumber} e cartão ${result.card.cardNumber} emitidos.`);
       queryClient.invalidateQueries({ queryKey: ['insured'] });
-      reset();
+      reset({ dependents: [] });
       onClose();
     },
     onError: (err) => toast.error(getApiErrorMessage(err)),
@@ -50,9 +65,12 @@ function CreateInsuredDialog({ open, onClose }: { open: boolean; onClose: () => 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent>
-        <DialogHeader><DialogTitle>Novo Segurado</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>Registar novo integrante</DialogTitle></DialogHeader>
         <form onSubmit={handleSubmit((v) => mutation.mutate(v))}>
           <DialogBody className="space-y-3">
+            <p className="text-xs text-text-secondary bg-muted/50 rounded-md px-3 py-2">
+              Ao guardar, este ecrã cria o Segurado, emite a Apólice do plano escolhido, e emite logo o Cartão de Seguro — tudo de uma vez.
+            </p>
             <div>
               <Label>Nome completo</Label>
               <Input className="mt-1" {...register('fullName')} />
@@ -112,11 +130,63 @@ function CreateInsuredDialog({ open, onClose }: { open: boolean; onClose: () => 
               <Label>Endereço</Label>
               <Input className="mt-1" {...register('address')} />
             </div>
+
+            <div className="border-t pt-3">
+              <Label className="flex items-center gap-1.5"><ShieldCheck size={14} /> Plano de Saúde (obrigatório)</Label>
+              <Select className="mt-1" disabled={loadingPlans} {...register('planId')}>
+                <option value="">{loadingPlans ? 'A carregar planos...' : 'Escolher plano...'}</option>
+                {plans?.filter((p) => p.status === 'active').map((p) => (
+                  <option key={p.id} value={p.id}>{p.name} — {p.monthlyValue.toLocaleString()} Kz/mês</option>
+                ))}
+              </Select>
+              {errors.planId && <p className="text-alert text-xs mt-1">{errors.planId.message}</p>}
+              <p className="text-xs text-text-secondary mt-1">
+                A apólice é criada com início hoje, 1 ano de validade, e o valor da mensalidade do plano.
+              </p>
+            </div>
+
+            <div className="border-t pt-3">
+              <div className="flex items-center justify-between mb-2">
+                <Label className="flex items-center gap-1.5"><Users2 size={14} /> Dependentes (opcional)</Label>
+                <button
+                  type="button"
+                  onClick={() => append({ relationship: 'child', fullName: '', birthDate: '', sex: 'M' })}
+                  className="text-xs text-institutional flex items-center gap-1 hover:underline"
+                >
+                  <Plus size={12} /> Adicionar dependente
+                </button>
+              </div>
+              {fields.length === 0 && <p className="text-xs text-text-secondary">Nenhum dependente incluído.</p>}
+              {fields.map((field, index) => (
+                <div key={field.id} className="grid grid-cols-[1fr_auto_auto_auto] gap-2 items-end mb-2 bg-muted/30 p-2 rounded-md">
+                  <div>
+                    <Label className="text-xs">Nome</Label>
+                    <Input className="mt-1" {...register(`dependents.${index}.fullName`)} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Parentesco</Label>
+                    <Select className="mt-1" {...register(`dependents.${index}.relationship`)}>
+                      {Object.entries(RELATIONSHIP_LABELS).map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Nascimento</Label>
+                    <Input type="date" className="mt-1" {...register(`dependents.${index}.birthDate`)} />
+                  </div>
+                  <button type="button" onClick={() => remove(index)} className="text-alert p-2" title="Remover">
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              ))}
+              {errors.dependents && <p className="text-alert text-xs mt-1">Verifique os dados dos dependentes.</p>}
+            </div>
           </DialogBody>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
             <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? <Loader2 size={16} className="animate-spin" /> : 'Criar Segurado'}
+              {mutation.isPending ? <Loader2 size={16} className="animate-spin" /> : 'Registar (Segurado + Apólice + Cartão)'}
             </Button>
           </DialogFooter>
         </form>

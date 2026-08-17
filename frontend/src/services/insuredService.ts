@@ -64,6 +64,27 @@ export async function createInsured(payload: CreateInsuredPayload) {
   return data.data;
 }
 
+export interface RegisterInsuredPayload extends CreateInsuredPayload {
+  planId: string;
+  dependents?: { relationship: string; fullName: string; birthDate: string; sex: string }[];
+}
+
+export interface RegisterInsuredResult {
+  insured: InsuredMember;
+  policy: { id: string; policyNumber: string };
+  card: { id: string; cardNumber: string };
+  dependents: { id: string; fullName: string }[];
+}
+
+// Registo completo "tudo num só ecrã": cria o Segurado, a Apólice (a partir
+// do Plano escolhido), emite o Cartão de Seguro, e inclui os Dependentes —
+// tudo numa única chamada, correspondendo à transacção atómica do backend
+// (POST /insured/register).
+export async function registerInsured(payload: RegisterInsuredPayload) {
+  const { data } = await apiClient.post<ApiSuccessResponse<RegisterInsuredResult>>('/insured/register', payload);
+  return data.data;
+}
+
 export async function updateInsured(id: string, payload: Partial<CreateInsuredPayload>) {
   const { data } = await apiClient.patch<ApiSuccessResponse<InsuredMember>>(`/insured/${id}`, payload);
   return data.data;
