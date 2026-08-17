@@ -8,6 +8,7 @@ import { MoreVertical } from 'lucide-react';
 import { listProviders, createProvider, setProviderStatus, deleteProvider } from '@/services/providerService';
 import { openWhatsApp } from '@/utils/whatsapp';
 import { createProviderSchema, type CreateProviderFormValues } from '@/schemas/providerSchema';
+import { ANGOLA_PROVINCES } from '@/constants/angola';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -91,7 +92,10 @@ function CreateProviderDialog({ open, onClose }: { open: boolean; onClose: () =>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Província</Label>
-                <Input className="mt-1" {...register('province')} />
+                <Select className="mt-1" {...register('province')}>
+                  <option value="">Escolher...</option>
+                  {ANGOLA_PROVINCES.map((p) => <option key={p} value={p}>{p}</option>)}
+                </Select>
               </div>
               <div>
                 <Label>Município</Label>

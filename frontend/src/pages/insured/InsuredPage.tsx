@@ -12,6 +12,7 @@ import { listPlans } from '@/services/planService';
 import { issueCard, listCardsByInsured, printCardPdf } from '@/services/cardService';
 import { openWhatsApp } from '@/utils/whatsapp';
 import { createInsuredSchema, type CreateInsuredFormValues } from '@/schemas/insuredSchema';
+import { ANGOLA_PROVINCES, NATIONALITY_OPTIONS, MARITAL_STATUS_OPTIONS } from '@/constants/angola';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -166,16 +167,34 @@ function CreateInsuredDialog({ open, onClose }: { open: boolean; onClose: () => 
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Província</Label>
-                <Input className="mt-1" {...register('province')} />
+                <Select className="mt-1" {...register('province')}>
+                  <option value="">Escolher...</option>
+                  {ANGOLA_PROVINCES.map((p) => <option key={p} value={p}>{p}</option>)}
+                </Select>
               </div>
               <div>
                 <Label>Município</Label>
-                <Input className="mt-1" {...register('municipality')} />
+                <Input className="mt-1" placeholder="Ex: Ingombota" {...register('municipality')} />
               </div>
             </div>
             <div>
               <Label>Endereço</Label>
               <Input className="mt-1" {...register('address')} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Nacionalidade</Label>
+                <Select className="mt-1" defaultValue="Angolana" {...register('nationality')}>
+                  {NATIONALITY_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
+                </Select>
+              </div>
+              <div>
+                <Label>Estado civil</Label>
+                <Select className="mt-1" {...register('maritalStatus')}>
+                  <option value="">Escolher...</option>
+                  {MARITAL_STATUS_OPTIONS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+                </Select>
+              </div>
             </div>
 
             <div className="border-t pt-3">

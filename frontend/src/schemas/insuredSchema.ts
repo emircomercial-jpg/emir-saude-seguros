@@ -12,6 +12,8 @@ export const createInsuredSchema = z.object({
   province: z.string().optional(),
   municipality: z.string().optional(),
   address: z.string().optional(),
+  nationality: z.string().optional(),
+  maritalStatus: z.string().optional(),
   // Obrigatório: sem plano, não há registo completo (o objectivo deste
   // formulário é sair já com apólice e cartão emitidos).
   planId: z.string().min(1, 'Escolha um plano — é obrigatório para emitir a apólice e o cartão.'),
