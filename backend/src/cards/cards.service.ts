@@ -69,6 +69,12 @@ export class CardsService {
     return card;
   }
 
+  // Usado para gerar o PDF imprimível do cartão — reutiliza a mesma
+  // pesquisa (com o Segurado incluído) já usada internamente.
+  async findForPrint(id: string, organizationId: string) {
+    return this.findCardInOrg(id, organizationId);
+  }
+
   async block(id: string, organizationId: string, updatedBy: string) {
     const card = await this.findCardInOrg(id, organizationId);
     const updated = await this.prisma.insuranceCard.update({ where: { id }, data: { status: 'blocked' } });

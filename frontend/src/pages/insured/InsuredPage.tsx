@@ -9,7 +9,7 @@ import {
   removeDependent, getInsured, lookupInsuredByDocument, type InsuredMember,
 } from '@/services/insuredService';
 import { listPlans } from '@/services/planService';
-import { issueCard } from '@/services/cardService';
+import { issueCard, listCardsByInsured, printCardPdf } from '@/services/cardService';
 import { openWhatsApp } from '@/utils/whatsapp';
 import { createInsuredSchema, type CreateInsuredFormValues } from '@/schemas/insuredSchema';
 import { Button } from '@/components/ui/button';
@@ -374,6 +374,21 @@ export default function InsuredPage() {
     onError: (err) => toast.error(getApiErrorMessage(err)),
   });
 
+  // "Imprimir cartão" — vai buscar o cartão activo mais recente deste
+  // segurado e abre logo o PDF pronto a imprimir, sem precisar de navegar
+  // até outra página para o encontrar.
+  const printCardMutation = useMutation({
+    mutationFn: async (insuredMemberId: string) => {
+      const cards = await listCardsByInsured(insuredMemberId);
+      const activeCard = cards.find((c) => c.status === 'active') ?? cards[0];
+      if (!activeCard) throw new Error('Este segurado ainda não tem nenhum cartão emitido.');
+      await printCardPdf(activeCard.id);
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : getApiErrorMessage(err)),
+  });
+
+  const [profileFor, setProfileFor] = useState<InsuredMember | null>(null);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -441,11 +456,17 @@ export default function InsuredPage() {
                             Suspender
                           </DropdownMenu.Item>
                         )}
+                        <DropdownMenu.Item onSelect={() => setProfileFor(item)} className="px-2 py-2 rounded-sm cursor-pointer hover:bg-muted flex items-center gap-2">
+                          <UserPlus2 size={14} /> Ver perfil / Acompanhar
+                        </DropdownMenu.Item>
                         <DropdownMenu.Item onSelect={() => setDependentsFor(item)} className="px-2 py-2 rounded-sm cursor-pointer hover:bg-muted">
                           Gerir dependentes
                         </DropdownMenu.Item>
                         <DropdownMenu.Item onSelect={() => issueCardMutation.mutate(item.id)} className="px-2 py-2 rounded-sm cursor-pointer hover:bg-muted flex items-center gap-2">
                           <CreditCard size={14} /> Emitir cartão
+                        </DropdownMenu.Item>
+                        <DropdownMenu.Item onSelect={() => printCardMutation.mutate(item.id)} className="px-2 py-2 rounded-sm cursor-pointer hover:bg-muted flex items-center gap-2">
+                          <CreditCard size={14} /> Imprimir cartão
                         </DropdownMenu.Item>
                         {item.phone && (
                           <DropdownMenu.Item
@@ -486,6 +507,90 @@ export default function InsuredPage() {
 
       <CreateInsuredDialog open={showCreate} onClose={() => setShowCreate(false)} />
       <DependentsDialog insured={dependentsFor} onClose={() => setDependentsFor(null)} />
+      <ProfileDialog insured={profileFor} onClose={() => setProfileFor(null)} />
     </div>
+  );
+}
+
+// "Ver perfil / Acompanhar" — visão consolidada de um único Segurado num
+// só sítio: dados, cartões (com impressão directa), apólice, e
+// dependentes. Antes disto, era preciso ir a três páginas diferentes para
+// juntar a mesma informação.
+function ProfileDialog({ insured, onClose }: { insured: InsuredMember | null; onClose: () => void }) {
+  const { data: freshInsured, isLoading: loadingInsured } = useQuery({
+    queryKey: ['insured-profile', insured?.id],
+    queryFn: () => getInsured(insured!.id),
+    enabled: !!insured,
+  });
+  const { data: cards, isLoading: loadingCards } = useQuery({
+    queryKey: ['insured-cards', insured?.id],
+    queryFn: () => listCardsByInsured(insured!.id),
+    enabled: !!insured,
+  });
+
+  const printMutation = useMutation({
+    mutationFn: (cardId: string) => printCardPdf(cardId),
+    onError: (err) => toast.error(getApiErrorMessage(err)),
+  });
+
+  const person = freshInsured ?? insured;
+  if (!insured) return null;
+
+  return (
+    <Dialog open={!!insured} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader><DialogTitle>{person?.fullName}</DialogTitle></DialogHeader>
+        <DialogBody className="space-y-4">
+          {loadingInsured && <p className="text-text-secondary text-sm flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> A carregar...</p>}
+          {person && (
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm bg-muted/30 rounded-md p-3">
+              <div><span className="text-text-secondary">Nº interno:</span> {person.internalNumber}</div>
+              <div><span className="text-text-secondary">Estado:</span> <Badge variant={STATUS_VARIANT[person.status]}>{STATUS_LABELS[person.status] || person.status}</Badge></div>
+              <div><span className="text-text-secondary">BI:</span> {person.idDocumentNumber}</div>
+              <div><span className="text-text-secondary">NIF:</span> {person.nif || '—'}</div>
+              <div><span className="text-text-secondary">Telefone:</span> {person.phone || '—'}</div>
+              <div><span className="text-text-secondary">E-mail:</span> {person.email || '—'}</div>
+            </div>
+          )}
+
+          <div>
+            <p className="text-sm font-medium mb-2 flex items-center gap-1.5"><CreditCard size={14} /> Cartões</p>
+            {loadingCards && <p className="text-text-secondary text-xs">A carregar...</p>}
+            {!loadingCards && (cards?.length ?? 0) === 0 && <p className="text-text-secondary text-xs">Nenhum cartão emitido ainda.</p>}
+            {cards?.map((card) => (
+              <div key={card.id} className="flex items-center justify-between text-sm border-b py-2 last:border-b-0">
+                <div>
+                  <span className="font-mono">{card.cardNumber}</span>
+                  <span className="text-text-secondary text-xs ml-2">válido até {new Date(card.expiryDate).toLocaleDateString('pt-PT')}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant={card.status === 'active' ? 'success' : 'muted'}>{card.status}</Badge>
+                  <button
+                    onClick={() => printMutation.mutate(card.id)}
+                    className="text-institutional hover:underline text-xs"
+                    disabled={printMutation.isPending}
+                  >
+                    Imprimir
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div>
+            <p className="text-sm font-medium mb-2 flex items-center gap-1.5"><Users2 size={14} /> Dependentes</p>
+            {(person?.dependents.length ?? 0) === 0 && <p className="text-text-secondary text-xs">Nenhum dependente.</p>}
+            {person?.dependents.map((dep) => (
+              <div key={dep.id} className="text-sm border-b py-2 last:border-b-0">
+                {dep.fullName} <span className="text-text-secondary text-xs">({RELATIONSHIP_LABELS[dep.relationship] || dep.relationship})</span>
+              </div>
+            ))}
+          </div>
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Fechar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

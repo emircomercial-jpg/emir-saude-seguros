@@ -39,6 +39,17 @@ export async function replaceCard(id: string) {
   return data.data;
 }
 
+// O PDF do cartão exige autenticação (token no cabeçalho, não em cookie),
+// por isso não pode ser aberto directamente como um link — é preciso
+// pedir o ficheiro através do cliente HTTP já autenticado, e só depois
+// abri-lo (como um URL temporário local) numa nova aba, pronto a imprimir.
+export async function printCardPdf(cardId: string) {
+  const response = await apiClient.get(`/cards/${cardId}/print.pdf`, { responseType: 'blob' });
+  const blobUrl = URL.createObjectURL(response.data);
+  window.open(blobUrl, '_blank');
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+}
+
 export interface ValidateCardResult {
   fullName: string;
   status: string;

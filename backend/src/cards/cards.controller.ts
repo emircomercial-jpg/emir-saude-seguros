@@ -1,6 +1,8 @@
-import { Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { CardsService } from './cards.service';
+import { generateCardPdf } from './card-print.util';
 import { RequirePermissions } from '../common/decorators/permissions.decorator';
 import { CurrentUser, CurrentUserPayload } from '../common/decorators/current-user.decorator';
 
@@ -29,6 +31,18 @@ export class CardsController {
   async listByInsured(@Param('insuredMemberId') insuredMemberId: string, @CurrentUser() user: CurrentUserPayload) {
     const data = await this.cardsService.listByInsured(insuredMemberId, user.organizationId);
     return { data, message: 'Cartões do segurado.' };
+  }
+
+  // Cartão em PDF, pronto a imprimir (tamanho real de cartão físico),
+  // com o QR Code para validação rápida no atendimento.
+  @Get(':id/print.pdf')
+  @RequirePermissions('cards.view')
+  async printCard(@Param('id') id: string, @CurrentUser() user: CurrentUserPayload, @Res() res: Response) {
+    const card = await this.cardsService.findForPrint(id, user.organizationId);
+    const pdf = await generateCardPdf(card);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="cartao-${card.cardNumber}.pdf"`);
+    res.send(pdf);
   }
 
   @Post('insured/:insuredMemberId/issue')
