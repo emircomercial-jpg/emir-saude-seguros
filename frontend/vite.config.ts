@@ -37,6 +37,10 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // "false" desliga a injecção automática do registo básico (que
+      // nunca verifica actualizações) — o registo é feito manualmente em
+      // main.tsx, com verificação periódica activa.
+      injectRegister: false,
       includeAssets: ['icons/icon-192.png', 'icons/icon-512.png'],
       manifest: {
         name: 'EMIR SAÚDE SEGUROS',

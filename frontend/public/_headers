@@ -12,6 +12,17 @@
 /logo/*
   Cache-Control: public, max-age=31536000, immutable
 
+# O próprio Service Worker (e o seu registo) nunca podem ficar em cache
+# prolongada — é o mecanismo que verifica se há uma versão nova da
+# aplicação. Se o browser ou a CDN o guardassem em cache por muito tempo,
+# quem já tivesse a aplicação aberta poderia nunca chegar a saber que
+# havia uma actualização disponível.
+/sw.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+/registerSW.js
+  Cache-Control: public, max-age=0, must-revalidate
+
 # O HTML principal nunca deve ficar em cache prolongado — tem de ser
 # sempre verificado, para os utilizadores receberem sempre a versão mais
 # recente da aplicação assim que publicamos uma actualização.
