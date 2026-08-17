@@ -114,4 +114,60 @@ describe('InsuredService', () => {
       expect(result.dependents).toHaveLength(1);
     });
   });
+
+  describe('lookupByDocument', () => {
+    beforeEach(() => {
+      prismaMock.dependent = { findFirst: jest.fn() };
+    });
+
+    it('finds an already-registered insured member and flags it clearly', async () => {
+      prismaMock.insuredMember.findFirst = jest.fn().mockResolvedValue({ id: 'insured-1', fullName: 'Maria', internalNumber: 'SEG-2026-000001' });
+
+      const result = await service.lookupByDocument('org-1', '123456789LA000');
+
+      expect(result.found).toBe(true);
+      expect((result as any).type).toBe('insured');
+      expect((result as any).alreadyRegistered).toBe(true);
+    });
+
+    it('finds a dependent of another insured member and offers their data without flagging a duplicate', async () => {
+      prismaMock.insuredMember.findFirst = jest.fn().mockResolvedValue(null);
+      prismaMock.dependent.findFirst.mockResolvedValue({
+        id: 'dep-1', fullName: 'Criança Crescida', birthDate: new Date('2005-01-01'), sex: 'M',
+        idDocumentNumber: '999888777LA000', phone: null,
+        insuredMember: { fullName: 'Pai Titular', internalNumber: 'SEG-2026-000002' },
+      });
+
+      const result = await service.lookupByDocument('org-1', '999888777LA000');
+
+      expect(result.found).toBe(true);
+      expect((result as any).type).toBe('dependent');
+      expect((result as any).alreadyRegistered).toBe(false);
+      expect((result as any).data.fullName).toBe('Criança Crescida');
+      expect((result as any).dependentOf.internalNumber).toBe('SEG-2026-000002');
+    });
+
+    it('reports nothing found for a genuinely new person', async () => {
+      prismaMock.insuredMember.findFirst = jest.fn().mockResolvedValue(null);
+      prismaMock.dependent.findFirst.mockResolvedValue(null);
+
+      const result = await service.lookupByDocument('org-1', '000000000LA000');
+
+      expect(result).toEqual({ found: false });
+    });
+
+    it('never returns a match from a different organization', async () => {
+      // A pesquisa do Segurado já filtra por organizationId directamente
+      // na query — confirma-se aqui que o filtro é sempre passado.
+      const findFirstSpy = jest.fn().mockResolvedValue(null);
+      prismaMock.insuredMember.findFirst = findFirstSpy;
+      prismaMock.dependent.findFirst.mockResolvedValue(null);
+
+      await service.lookupByDocument('org-1', '123456789LA000');
+
+      expect(findFirstSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ organizationId: 'org-1' }) }),
+      );
+    });
+  });
 });

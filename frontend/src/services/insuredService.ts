@@ -45,6 +45,31 @@ export async function getInsured(id: string) {
   return data.data;
 }
 
+export interface LookupByDocumentResult {
+  found: boolean;
+  type?: 'insured' | 'dependent';
+  alreadyRegistered?: boolean;
+  data?: {
+    fullName: string;
+    birthDate: string;
+    sex: string;
+    idDocumentNumber: string;
+    phone?: string | null;
+    internalNumber?: string;
+  };
+  dependentOf?: { fullName: string; internalNumber: string };
+}
+
+// Pesquisa prática por BI — preenche o formulário automaticamente quando a
+// pessoa já existe no sistema (como Dependente de outro Segurado), ou
+// avisa claramente se já estiver registada como Segurado (evita duplicar).
+export async function lookupInsuredByDocument(idDocumentNumber: string) {
+  const { data } = await apiClient.get<ApiSuccessResponse<LookupByDocumentResult>>(
+    `/insured/lookup/by-document/${encodeURIComponent(idDocumentNumber)}`,
+  );
+  return data.data;
+}
+
 export interface CreateInsuredPayload {
   fullName: string;
   birthDate: string;

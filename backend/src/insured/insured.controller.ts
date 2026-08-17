@@ -21,6 +21,17 @@ export class InsuredController {
     return { data: items, meta, message: 'Lista de segurados.' };
   }
 
+  // Pesquisa prática por BI, para preencher o formulário de registo
+  // automaticamente quando a pessoa já existe no sistema. TEM de estar
+  // declarada antes de "@Get(':id')" — caso contrário o NestJS
+  // interpretaria "lookup" como se fosse o próprio :id.
+  @Get('lookup/by-document/:idDocumentNumber')
+  @RequirePermissions('insured.create')
+  async lookupByDocument(@Param('idDocumentNumber') idDocumentNumber: string, @CurrentUser() user: CurrentUserPayload) {
+    const data = await this.insuredService.lookupByDocument(user.organizationId, idDocumentNumber);
+    return { data, message: data.found ? 'Registo encontrado.' : 'Nenhum registo encontrado — pessoa nova.' };
+  }
+
   @Get(':id')
   @RequirePermissions('insured.view')
   async findOne(@Param('id') id: string, @CurrentUser() user: CurrentUserPayload) {

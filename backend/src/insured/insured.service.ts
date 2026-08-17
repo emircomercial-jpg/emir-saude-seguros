@@ -72,6 +72,46 @@ export class InsuredService {
     return insured;
   }
 
+  // Pesquisa prática por Bilhete de Identidade — usada para preencher
+  // automaticamente o formulário de registo quando a pessoa já existe no
+  // sistema (como Segurado já registado, ou como Dependente de outro
+  // Segurado que agora precisa do seu próprio registo, ex: atingiu a
+  // maioridade). Nunca devolve dados de outra organização.
+  async lookupByDocument(organizationId: string, idDocumentNumber: string) {
+    const insured = await this.prisma.insuredMember.findFirst({
+      where: { organizationId, idDocumentNumber, deletedAt: null },
+    });
+    if (insured) {
+      return { found: true, type: 'insured' as const, alreadyRegistered: true, data: insured };
+    }
+
+    const dependent = await this.prisma.dependent.findFirst({
+      where: {
+        idDocumentNumber,
+        deletedAt: null,
+        insuredMember: { organizationId, deletedAt: null },
+      },
+      include: { insuredMember: { select: { fullName: true, internalNumber: true } } },
+    });
+    if (dependent) {
+      return {
+        found: true,
+        type: 'dependent' as const,
+        alreadyRegistered: false,
+        data: {
+          fullName: dependent.fullName,
+          birthDate: dependent.birthDate,
+          sex: dependent.sex,
+          idDocumentNumber: dependent.idDocumentNumber,
+          phone: dependent.phone,
+        },
+        dependentOf: dependent.insuredMember,
+      };
+    }
+
+    return { found: false };
+  }
+
   async create(organizationId: string, dto: CreateInsuredDto, createdBy: string) {
     const duplicateDoc = await this.prisma.insuredMember.findUnique({ where: { idDocumentNumber: dto.idDocumentNumber } });
     if (duplicateDoc) throw new ConflictException('Já existe um segurado com este Bilhete de Identidade.');

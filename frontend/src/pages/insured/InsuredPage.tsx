@@ -1,12 +1,12 @@
-import { useState } from 'react';
+import { useState, type FocusEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Plus, Search, MoreVertical, UserPlus2, Loader2, Trash2, CreditCard, MessageCircle, Users2, ShieldCheck } from 'lucide-react';
+import { Plus, Search, MoreVertical, UserPlus2, Loader2, Trash2, CreditCard, MessageCircle, Users2, ShieldCheck, CheckCircle2, AlertTriangle } from 'lucide-react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
   listInsured, registerInsured, deleteInsured, setInsuredStatus, addDependent,
-  removeDependent, getInsured, type InsuredMember,
+  removeDependent, getInsured, lookupInsuredByDocument, type InsuredMember,
 } from '@/services/insuredService';
 import { listPlans } from '@/services/planService';
 import { issueCard } from '@/services/cardService';
@@ -43,11 +43,43 @@ const STATUS_VARIANT: Record<string, any> = {
 // tudo numa única transacção (ou fica tudo criado, ou nada fica).
 function CreateInsuredDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const { register, handleSubmit, reset, control, formState: { errors } } = useForm<CreateInsuredFormValues>({
+  const { register, handleSubmit, reset, control, setValue, formState: { errors } } = useForm<CreateInsuredFormValues>({
     resolver: zodResolver(createInsuredSchema),
     defaultValues: { dependents: [] },
   });
   const { fields, append, remove } = useFieldArray({ control, name: 'dependents' });
+  const [lookupState, setLookupState] = useState<'idle' | 'searching' | 'already_registered' | 'autofilled' | 'not_found'>('idle');
+  const [lookupInfo, setLookupInfo] = useState<string>('');
+
+  // Pesquisa automática por BI ao sair do campo: se a pessoa já existir
+  // como Dependente de outro Segurado, preenche o resto do formulário
+  // sozinho; se já existir como Segurado, avisa claramente em vez de
+  // deixar tentar duplicar (o backend rejeitaria de qualquer forma).
+  async function handleDocumentBlur(e: FocusEvent<HTMLInputElement>) {
+    const value = e.target.value.trim();
+    if (value.length < 3) { setLookupState('idle'); return; }
+
+    setLookupState('searching');
+    try {
+      const result = await lookupInsuredByDocument(value);
+      if (result.found && result.type === 'insured') {
+        setLookupState('already_registered');
+        setLookupInfo(`Já registado como ${result.data?.internalNumber ?? ''} — ${result.data?.fullName}.`);
+      } else if (result.found && result.type === 'dependent' && result.data) {
+        setValue('fullName', result.data.fullName);
+        setValue('birthDate', result.data.birthDate.slice(0, 10));
+        setValue('sex', result.data.sex as 'M' | 'F');
+        if (result.data.phone) setValue('phone', result.data.phone);
+        setLookupState('autofilled');
+        setLookupInfo(`Dados preenchidos automaticamente — já era dependente de ${result.dependentOf?.fullName}.`);
+      } else {
+        setLookupState('not_found');
+        setLookupInfo('');
+      }
+    } catch {
+      setLookupState('idle');
+    }
+  }
 
   const { data: plans, isLoading: loadingPlans } = useQuery({ queryKey: ['plans-for-registration'], queryFn: listPlans, enabled: open });
 
@@ -57,6 +89,7 @@ function CreateInsuredDialog({ open, onClose }: { open: boolean; onClose: () => 
       toast.success(`Segurado registado — apólice ${result.policy.policyNumber} e cartão ${result.card.cardNumber} emitidos.`);
       queryClient.invalidateQueries({ queryKey: ['insured'] });
       reset({ dependents: [] });
+      setLookupState('idle');
       onClose();
     },
     onError: (err) => toast.error(getApiErrorMessage(err)),
@@ -93,8 +126,22 @@ function CreateInsuredDialog({ open, onClose }: { open: boolean; onClose: () => 
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Bilhete de Identidade</Label>
-                <Input className="mt-1" {...register('idDocumentNumber')} />
+                <div className="relative">
+                  <Input
+                    className="mt-1"
+                    {...register('idDocumentNumber', { onBlur: handleDocumentBlur })}
+                  />
+                  {lookupState === 'searching' && (
+                    <Loader2 size={14} className="animate-spin absolute right-2 top-1/2 -translate-y-1/2 mt-0.5 text-text-secondary" />
+                  )}
+                </div>
                 {errors.idDocumentNumber && <p className="text-alert text-xs mt-1">{errors.idDocumentNumber.message}</p>}
+                {lookupState === 'already_registered' && (
+                  <p className="text-alert text-xs mt-1 flex items-center gap-1"><AlertTriangle size={12} /> {lookupInfo}</p>
+                )}
+                {lookupState === 'autofilled' && (
+                  <p className="text-vital text-xs mt-1 flex items-center gap-1"><CheckCircle2 size={12} /> {lookupInfo}</p>
+                )}
               </div>
               <div>
                 <Label>NIF</Label>
