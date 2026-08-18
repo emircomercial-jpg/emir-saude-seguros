@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, DatabaseBackup, Download } from 'lucide-react';
 import { getSettings, updateSettings } from '@/services/settingsService';
+import { apiClient, getApiErrorMessage } from '@/services/apiClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { getApiErrorMessage } from '@/services/apiClient';
 import { toast } from '@/stores/toastStore';
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -80,6 +80,22 @@ function CategorySection({ category, items }: { category: string; items: { key: 
 export default function SettingsPage() {
   const { data, isLoading } = useQuery({ queryKey: ['settings'], queryFn: getSettings });
 
+  const backupMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiClient.get('/settings/backup/export', { responseType: 'blob' });
+      const blobUrl = URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `emir-saude-seguros-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+    },
+    onSuccess: () => toast.success('Cópia de segurança descarregada com sucesso.'),
+    onError: (err) => toast.error(getApiErrorMessage(err)),
+  });
+
   return (
     <div>
       <h1 className="text-xl font-semibold text-text-primary mb-1">Configurações</h1>
@@ -93,6 +109,23 @@ export default function SettingsPage() {
         {data && Object.entries(data).map(([category, items]) => (
           <CategorySection key={category} category={category} items={items} />
         ))}
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><DatabaseBackup size={18} /> Cópia de Segurança Manual</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-text-secondary mb-4">
+              Descarrega um ficheiro com todos os dados de negócio (segurados, apólices, sinistros, convénios, etc.)
+              como rede de protecção adicional. Nunca inclui senhas nem chaves de integração. Recomenda-se fazer isto
+              regularmente e guardar o ficheiro num sítio seguro, fora do sistema.
+            </p>
+            <Button size="sm" onClick={() => backupMutation.mutate()} disabled={backupMutation.isPending}>
+              {backupMutation.isPending ? <Loader2 size={14} className="animate-spin mr-1.5" /> : <Download size={14} className="mr-1.5" />}
+              Descarregar Cópia de Segurança
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
