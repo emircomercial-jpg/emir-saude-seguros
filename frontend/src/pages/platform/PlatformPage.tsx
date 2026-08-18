@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Plus, Building, Loader2, MoreVertical, Users2, ShieldCheck, FileText } from 'lucide-react';
+import { Plus, Building, Loader2, MoreVertical, Users2, ShieldCheck, FileText, AlertTriangle, Wallet, CheckCircle2 } from 'lucide-react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
-  listOrganizations, createOrganization, updateOrganizationStatus, type PlatformOrganization,
+  listOrganizations, createOrganization, updateOrganizationStatus, setSubscription, recordSubscriptionPayment,
+  type PlatformOrganization,
 } from '@/services/platformService';
 import { createOrganizationSchema, type CreateOrganizationFormValues } from '@/schemas/organizationSchema';
 import { Button } from '@/components/ui/button';
@@ -36,6 +37,14 @@ export default function PlatformPage() {
     onSuccess: () => { toast.success('Estado da empresa actualizado.'); queryClient.invalidateQueries({ queryKey: ['platform-organizations'] }); },
     onError: (err) => toast.error(getApiErrorMessage(err)),
   });
+
+  const paymentMutation = useMutation({
+    mutationFn: recordSubscriptionPayment,
+    onSuccess: () => { toast.success('Pagamento registado — acesso garantido até ao próximo vencimento.'); queryClient.invalidateQueries({ queryKey: ['platform-organizations'] }); },
+    onError: (err) => toast.error(getApiErrorMessage(err)),
+  });
+
+  const [subscriptionFor, setSubscriptionFor] = useState<PlatformOrganization | null>(null);
 
   const totalUsers = organizations?.reduce((sum, o) => sum + o.userCount, 0) ?? 0;
   const totalInsured = organizations?.reduce((sum, o) => sum + o.insuredCount, 0) ?? 0;
@@ -74,6 +83,7 @@ export default function PlatformPage() {
           <thead className="bg-muted/50 text-left text-text-secondary">
             <tr>
               <th className="px-4 py-3 font-medium">Empresa</th>
+              <th className="px-4 py-3 font-medium">Assinatura</th>
               <th className="px-4 py-3 font-medium">Utilizadores</th>
               <th className="px-4 py-3 font-medium">Segurados</th>
               <th className="px-4 py-3 font-medium">Apólices</th>
@@ -82,9 +92,9 @@ export default function PlatformPage() {
             </tr>
           </thead>
           <tbody>
-            {isLoading && <tr><td colSpan={6} className="px-4 py-8 text-center text-text-secondary"><Loader2 className="animate-spin inline" size={18} /> A carregar...</td></tr>}
+            {isLoading && <tr><td colSpan={7} className="px-4 py-8 text-center text-text-secondary"><Loader2 className="animate-spin inline" size={18} /> A carregar...</td></tr>}
             {!isLoading && (organizations?.length ?? 0) === 0 && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-text-secondary">Nenhuma empresa cliente ainda.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-text-secondary">Nenhuma empresa cliente ainda.</td></tr>
             )}
             {organizations?.map((org) => (
               <tr key={org.id} className="border-t">
@@ -92,6 +102,19 @@ export default function PlatformPage() {
                   {org.name}
                   {org.nif && <span className="text-text-secondary text-xs ml-1">({org.nif})</span>}
                   <div className="text-text-secondary text-xs">{org.email}</div>
+                </td>
+                <td className="px-4 py-3">
+                  {org.subscriptionValue ? (
+                    <div className={org.isOverdue ? 'text-alert' : ''}>
+                      <div className="font-medium">{Number(org.subscriptionValue).toLocaleString()} Kz/mês</div>
+                      <div className="text-xs flex items-center gap-1">
+                        {org.isOverdue && <AlertTriangle size={11} />}
+                        vence {org.subscriptionNextDueDate ? new Date(org.subscriptionNextDueDate).toLocaleDateString('pt-PT') : '—'}
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-text-secondary text-xs">Sem assinatura definida</span>
+                  )}
                 </td>
                 <td className="px-4 py-3">{org.userCount}</td>
                 <td className="px-4 py-3">{org.insuredCount}</td>
@@ -104,6 +127,14 @@ export default function PlatformPage() {
                     </DropdownMenu.Trigger>
                     <DropdownMenu.Portal>
                       <DropdownMenu.Content align="end" className="bg-card border rounded-md shadow-lg p-1 text-sm min-w-[180px]">
+                        <DropdownMenu.Item onSelect={() => setSubscriptionFor(org)} className="px-2 py-2 rounded-sm cursor-pointer hover:bg-muted flex items-center gap-2">
+                          <Wallet size={14} /> Definir assinatura
+                        </DropdownMenu.Item>
+                        {org.subscriptionValue && (
+                          <DropdownMenu.Item onSelect={() => paymentMutation.mutate(org.id)} className="px-2 py-2 rounded-sm cursor-pointer hover:bg-muted flex items-center gap-2">
+                            <CheckCircle2 size={14} /> Registar pagamento
+                          </DropdownMenu.Item>
+                        )}
                         {org.status === 'active' ? (
                           <DropdownMenu.Item onSelect={() => statusMutation.mutate({ id: org.id, status: 'suspended' })} className="px-2 py-2 rounded-sm cursor-pointer hover:bg-muted">
                             Suspender acesso
@@ -124,7 +155,59 @@ export default function PlatformPage() {
       </div>
 
       <CreateOrganizationDialog open={showCreate} onClose={() => setShowCreate(false)} />
+      <SubscriptionDialog organization={subscriptionFor} onClose={() => setSubscriptionFor(null)} />
     </div>
+  );
+}
+
+function SubscriptionDialog({ organization, onClose }: { organization: PlatformOrganization | null; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [value, setValue] = useState('');
+  const [dueDate, setDueDate] = useState('');
+
+  const mutation = useMutation({
+    mutationFn: () => setSubscription(organization!.id, Number(value), new Date(dueDate).toISOString()),
+    onSuccess: () => {
+      toast.success('Assinatura definida com sucesso.');
+      queryClient.invalidateQueries({ queryKey: ['platform-organizations'] });
+      setValue('');
+      setDueDate('');
+      onClose();
+    },
+    onError: (err) => toast.error(getApiErrorMessage(err)),
+  });
+
+  if (!organization) return null;
+
+  return (
+    <Dialog open={!!organization} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent>
+        <DialogHeader><DialogTitle className="flex items-center gap-2"><Wallet size={16} /> Assinatura — {organization.name}</DialogTitle></DialogHeader>
+        <DialogBody className="space-y-3">
+          <p className="text-xs text-text-secondary bg-muted/50 rounded-md px-3 py-2">
+            Se o pagamento não for registado até 5 dias depois do vencimento, o acesso desta empresa é bloqueado automaticamente,
+            sem precisares de fazer nada. Assim que registares o pagamento, o acesso volta de imediato.
+          </p>
+          <div>
+            <Label>Valor mensal (Kz)</Label>
+            <Input type="number" min="0" className="mt-1" value={value} onChange={(e) => setValue(e.target.value)} />
+          </div>
+          <div>
+            <Label>Próximo vencimento</Label>
+            <Input type="date" className="mt-1" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          </div>
+        </DialogBody>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending || !value || !dueDate}
+          >
+            {mutation.isPending ? <Loader2 size={16} className="animate-spin" /> : 'Guardar'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

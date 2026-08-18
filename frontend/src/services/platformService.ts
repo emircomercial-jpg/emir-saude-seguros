@@ -13,6 +13,10 @@ export interface PlatformOrganization {
   userCount: number;
   insuredCount: number;
   policyCount: number;
+  subscriptionValue: string | null;
+  subscriptionNextDueDate: string | null;
+  subscriptionLastPaymentAt: string | null;
+  isOverdue: boolean;
 }
 
 export interface CreateOrganizationPayload {
@@ -40,5 +44,18 @@ export async function createOrganization(payload: CreateOrganizationPayload) {
 
 export async function updateOrganizationStatus(id: string, status: 'active' | 'suspended' | 'inactive') {
   const { data } = await apiClient.patch<ApiSuccessResponse<PlatformOrganization>>(`/platform/organizations/${id}/status`, { status });
+  return data.data;
+}
+
+export async function setSubscription(id: string, subscriptionValue: number, subscriptionNextDueDate: string) {
+  const { data } = await apiClient.patch<ApiSuccessResponse<PlatformOrganization>>(`/platform/organizations/${id}/subscription`, {
+    subscriptionValue,
+    subscriptionNextDueDate,
+  });
+  return data.data;
+}
+
+export async function recordSubscriptionPayment(id: string) {
+  const { data } = await apiClient.post<ApiSuccessResponse<PlatformOrganization>>(`/platform/organizations/${id}/subscription/record-payment`);
   return data.data;
 }
