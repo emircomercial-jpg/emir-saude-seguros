@@ -52,4 +52,12 @@ export class DevEmailService implements EmailService {
       'Regularize o pagamento para evitar a suspensão da sua cobertura.',
     ]);
   }
+
+  async sendPolicyRenewalReminder(to: string, fullName: string, policyNumber: string, endDate: Date, daysRemaining: number): Promise<void> {
+    this.print(`A sua apólice ${policyNumber} termina em breve`, to, [
+      `Olá ${fullName},`,
+      `A sua apólice ${policyNumber} termina dentro de ${daysRemaining} dia(s), a ${endDate.toLocaleDateString('pt-PT')}.`,
+      'Contacte-nos para renovar e manter a sua cobertura de saúde activa, sem interrupções.',
+    ]);
+  }
 }

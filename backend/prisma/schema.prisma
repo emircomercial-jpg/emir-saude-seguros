@@ -1205,3 +1205,25 @@ model InsuranceAgreement {
   @@index([organizationId])
   @@map("insurance_agreements")
 }
+
+// --------------------------------------------------
+// Registo de avisos automáticos (lembretes de renovação, mensalidades em
+// atraso, etc.) — garante que cada aviso só é enviado UMA VEZ por
+// segurado+tipo+prazo, mesmo que a verificação seja corrida várias vezes
+// (ex: todos os dias). Sem isto, o mesmo aviso seria reenviado sempre que
+// a verificação corresse, incomodando o cliente.
+model NotificationLog {
+  id              String   @id @default(uuid())
+  organizationId  String   @map("organization_id")
+  insuredMemberId String   @map("insured_member_id")
+  // policy_renewal_30d | policy_renewal_15d | policy_renewal_10d |
+  // policy_renewal_5d | policy_renewal_1d | premium_overdue
+  type            String
+  relatedId       String   @map("related_id") // ID da Apólice ou da Mensalidade em causa
+  channel         String   // email | whatsapp
+  sentAt          DateTime @default(now()) @map("sent_at")
+
+  @@unique([type, relatedId, channel])
+  @@index([organizationId])
+  @@map("notification_logs")
+}

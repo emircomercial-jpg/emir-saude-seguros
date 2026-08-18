@@ -98,4 +98,13 @@ export class WhatsAppCloudApiService implements WhatsAppService {
       dueDate.toLocaleDateString('pt-PT'),
     ]);
   }
+
+  async sendPolicyRenewalReminder(phone: string, fullName: string, policyNumber: string, endDate: Date, daysRemaining: number): Promise<void> {
+    await this.sendTemplate(phone, 'policy_renewal_reminder', [
+      fullName,
+      policyNumber,
+      String(daysRemaining),
+      endDate.toLocaleDateString('pt-PT'),
+    ]);
+  }
 }

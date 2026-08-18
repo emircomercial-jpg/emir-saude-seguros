@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Save, DatabaseBackup, Download } from 'lucide-react';
+import { Loader2, Save, DatabaseBackup, Download, Send, BellRing } from 'lucide-react';
 import { getSettings, updateSettings } from '@/services/settingsService';
+import { runNotificationChecks } from '@/services/notificationService';
 import { apiClient, getApiErrorMessage } from '@/services/apiClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -126,7 +127,49 @@ export default function SettingsPage() {
             </Button>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><BellRing size={18} /> Avisos Automáticos aos Clientes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-text-secondary mb-3">
+              Envia lembretes de renovação (30, 15, 10, 5 e 1 dia antes de uma apólice vencer) e avisos de mensalidades
+              em atraso, por e-mail e WhatsApp — nunca reenvia o mesmo aviso duas vezes.
+            </p>
+            <NotificationCheckButton />
+            <div className="mt-4 bg-muted/50 rounded-md p-3 text-xs text-text-secondary space-y-1.5">
+              <p className="font-medium text-text-primary">Para isto correr sozinho, todos os dias, sem precisares de clicar:</p>
+              <p>
+                Configura um serviço gratuito de agendamento (ex: cron-job.org) para chamar, uma vez por dia,{' '}
+                <code className="bg-card px-1 py-0.5 rounded">POST /api/notifications/run-scheduled-checks</code>, com o
+                cabeçalho <code className="bg-card px-1 py-0.5 rounded">x-cron-secret</code> igual ao valor de{' '}
+                <code className="bg-card px-1 py-0.5 rounded">NOTIFICATIONS_CRON_SECRET</code> definido no servidor.
+              </p>
+              <p>
+                Enquanto o WhatsApp/e-mail reais não estiverem configurados (chaves próprias), os avisos ficam
+                registados no histórico do servidor, mas não são enviados de facto.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
+  );
+}
+
+function NotificationCheckButton() {
+  const mutation = useMutation({
+    mutationFn: runNotificationChecks,
+    onSuccess: (result) =>
+      toast.success(`${result.renewalRemindersSent} lembrete(s) de renovação e ${result.overduePremiumRemindersSent} aviso(s) de atraso enviados.`),
+    onError: (err) => toast.error(getApiErrorMessage(err)),
+  });
+
+  return (
+    <Button size="sm" variant="outline" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+      {mutation.isPending ? <Loader2 size={14} className="animate-spin mr-1.5" /> : <Send size={14} className="mr-1.5" />}
+      Verificar e Enviar Agora
+    </Button>
   );
 }

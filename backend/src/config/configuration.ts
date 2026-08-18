@@ -56,6 +56,13 @@ export default () => ({
     apiVersion: process.env.WHATSAPP_API_VERSION || 'v20.0',
   },
 
+  // Chave secreta exigida pelo gatilho externo de verificação agendada
+  // (POST /api/notifications/run-scheduled-checks) — sem isto configurado,
+  // esse endpoint recusa sempre o pedido (ver NotificationsCronGuard).
+  notifications: {
+    cronSecret: process.env.NOTIFICATIONS_CRON_SECRET,
+  },
+
   localization: {
     timezone: process.env.TIMEZONE || 'Africa/Luanda',
     language: process.env.DEFAULT_LANGUAGE || 'pt',

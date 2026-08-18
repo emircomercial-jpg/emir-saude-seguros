@@ -112,4 +112,17 @@ export class NodemailerEmailService implements EmailService {
       `),
     );
   }
+
+  async sendPolicyRenewalReminder(to: string, fullName: string, policyNumber: string, endDate: Date, daysRemaining: number): Promise<void> {
+    await this.send(
+      to,
+      `A sua apólice ${policyNumber} termina em breve`,
+      this.wrap('A sua apólice termina em breve', `
+        <p>Olá ${fullName},</p>
+        <p>A sua apólice <strong>${policyNumber}</strong> termina dentro de
+        <strong>${daysRemaining} dia(s)</strong>, a <strong>${endDate.toLocaleDateString('pt-PT')}</strong>.</p>
+        <p>Contacte-nos para renovar e manter a sua cobertura de saúde activa, sem interrupções.</p>
+      `),
+    );
+  }
 }

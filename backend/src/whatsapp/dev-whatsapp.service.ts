@@ -38,4 +38,11 @@ export class DevWhatsAppService implements WhatsAppService {
       `Olá ${fullName}, a sua mensalidade de ${value.toLocaleString()} Kz, com vencimento em ${dueDate.toLocaleDateString('pt-PT')}, está em atraso. Regularize para evitar a suspensão da sua cobertura.`,
     );
   }
+
+  async sendPolicyRenewalReminder(phone: string, fullName: string, policyNumber: string, endDate: Date, daysRemaining: number): Promise<void> {
+    this.print(
+      phone,
+      `Olá ${fullName}, a sua apólice ${policyNumber} termina em ${daysRemaining} dia(s), a ${endDate.toLocaleDateString('pt-PT')}. Contacte-nos para renovar e manter a sua cobertura activa.`,
+    );
+  }
 }

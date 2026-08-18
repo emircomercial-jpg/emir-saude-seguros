@@ -37,6 +37,7 @@ import { PortalModule } from './portal/portal.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { AgreementsModule } from './agreements/agreements.module';
 import { PlatformModule } from './platform/platform.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 
@@ -92,6 +93,7 @@ import { PermissionsGuard } from './common/guards/permissions.guard';
     IntegrationsModule,
     AgreementsModule,
     PlatformModule,
+    NotificationsModule,
   ],
   providers: [
     // Guard global de rate limiting.

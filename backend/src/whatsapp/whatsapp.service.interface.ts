@@ -12,6 +12,7 @@ export interface WhatsAppService {
   sendReimbursementDecisionNotification(phone: string, fullName: string, reimbursementNumber: string, status: string): Promise<void>;
   sendAuthorizationDecisionNotification(phone: string, fullName: string, requestNumber: string, status: string): Promise<void>;
   sendOverduePremiumNotification(phone: string, fullName: string, dueDate: Date, value: number): Promise<void>;
+  sendPolicyRenewalReminder(phone: string, fullName: string, policyNumber: string, endDate: Date, daysRemaining: number): Promise<void>;
 }
 
 export const WHATSAPP_SERVICE = 'WHATSAPP_SERVICE';
