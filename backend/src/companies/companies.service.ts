@@ -54,7 +54,9 @@ export class CompaniesService {
   }
 
   async create(organizationId: string, dto: CreateCompanyDto, createdBy: string) {
-    const existing = await this.prisma.company.findUnique({ where: { nif: dto.nif } });
+    const existing = await this.prisma.company.findUnique({
+      where: { organizationId_nif: { organizationId, nif: dto.nif } },
+    });
     if (existing) throw new ConflictException('Já existe uma empresa com este NIF.');
 
     const company = await this.prisma.company.create({

@@ -78,17 +78,17 @@ enum DependentRelationship {
 model InsuredMember {
   id               String        @id @default(uuid())
   organizationId   String        @map("organization_id")
-  internalNumber   String        @unique @map("internal_number")
+  internalNumber   String        @map("internal_number")
   fullName         String        @map("full_name")
   photoUrl         String?       @map("photo_url")
   birthDate        DateTime      @map("birth_date")
   sex              String        // M | F
   maritalStatus    String?       @map("marital_status")
   nationality      String?
-  idDocumentNumber String        @unique @map("id_document_number")
+  idDocumentNumber String        @map("id_document_number")
   idIssueDate      DateTime?     @map("id_issue_date")
   idExpiryDate     DateTime?     @map("id_expiry_date")
-  nif              String?       @unique
+  nif              String?
   phone            String?
   altPhone         String?       @map("alt_phone")
   // Consentimento explícito para receber notificações por WhatsApp neste
@@ -133,6 +133,17 @@ model InsuredMember {
   externalInvoices ExternalInvoice[]
 
   @@index([organizationId])
+  // Único DENTRO de cada empresa cliente, não em todo o sistema — duas
+  // empresas clientes diferentes podem ter, cada uma, um segurado com o
+  // mesmo número de BI (são pessoas em negócios completamente separados,
+  // mesmo que coincidentemente sejam a mesma pessoa da vida real). Sem
+  // isto, a segunda empresa cliente do sistema nunca conseguiria
+  // registar um segurado cujo BI já existisse na primeira empresa —
+  // bug real, encontrado antes de vender o sistema a mais do que uma
+  // empresa.
+  @@unique([organizationId, internalNumber])
+  @@unique([organizationId, idDocumentNumber])
+  @@unique([organizationId, nif])
   @@map("insured_members")
 }
 
@@ -182,7 +193,7 @@ model Company {
   organizationId  String        @map("organization_id")
   legalName       String        @map("legal_name")
   tradeName       String?       @map("trade_name")
-  nif             String        @unique
+  nif             String
   sector          String?
   responsibleName String?       @map("responsible_name")
   phone           String?
@@ -211,6 +222,7 @@ model Company {
   externalInvoices ExternalInvoice[]
 
   @@index([organizationId])
+  @@unique([organizationId, nif])
   @@map("companies")
 }
 
@@ -222,7 +234,7 @@ model HealthPlan {
   id                 String     @id @default(uuid())
   organizationId     String     @map("organization_id")
   name               String
-  code               String     @unique
+  code               String
   description        String?
   monthlyValue       Decimal    @map("monthly_value") @db.Decimal(14, 2)
   annualLimit        Decimal?   @map("annual_limit") @db.Decimal(14, 2)
@@ -246,6 +258,7 @@ model HealthPlan {
   policies     Policy[]
 
   @@index([organizationId])
+  @@unique([organizationId, code])
   @@map("health_plans")
 }
 
@@ -276,7 +289,7 @@ enum PolicyStatus {
 model Policy {
   id               String       @id @default(uuid())
   organizationId   String       @map("organization_id")
-  policyNumber     String       @unique @map("policy_number")
+  policyNumber     String       @map("policy_number")
   planId           String       @map("plan_id")
   companyId        String?      @map("company_id")
   issueDate        DateTime     @map("issue_date")
@@ -308,6 +321,7 @@ model Policy {
   premiums     Premium[]
 
   @@index([organizationId])
+  @@unique([organizationId, policyNumber])
   @@map("policies")
 }
 
@@ -368,7 +382,7 @@ model Provider {
   id              String         @id @default(uuid())
   organizationId  String         @map("organization_id")
   name            String
-  nif             String         @unique
+  nif             String
   type            String         // hospital | clinic | office | pharmacy | laboratory | physiotherapy | dentist | optics | ambulance
   licenseNumber   String?        @map("license_number")
   responsibleName String?        @map("responsible_name")
@@ -395,6 +409,7 @@ model Provider {
   portalUsers    User[]
 
   @@index([organizationId])
+  @@unique([organizationId, nif])
   @@map("providers")
 }
 
@@ -423,7 +438,7 @@ enum AuthorizationPriority {
 model Authorization {
   id                     String                @id @default(uuid())
   organizationId         String                @map("organization_id")
-  requestNumber          String                @unique @map("request_number")
+  requestNumber          String                @map("request_number")
   insuredMemberId        String                @map("insured_member_id")
   providerId             String?               @map("provider_id")
   requestingDoctor       String?               @map("requesting_doctor")
@@ -449,6 +464,7 @@ model Authorization {
   history       AuthorizationHistory[]
 
   @@index([organizationId])
+  @@unique([organizationId, requestNumber])
   @@map("authorizations")
 }
 
@@ -604,7 +620,7 @@ model LaboratoryResult {
 model Claim {
   id              String    @id @default(uuid())
   organizationId  String    @map("organization_id")
-  claimNumber     String    @unique @map("claim_number")
+  claimNumber     String    @map("claim_number")
   insuredMemberId String    @map("insured_member_id")
   policyId        String?   @map("policy_id")
   providerId      String?   @map("provider_id")
@@ -629,6 +645,7 @@ model Claim {
   provider      Provider?      @relation(fields: [providerId], references: [id])
 
   @@index([organizationId])
+  @@unique([organizationId, claimNumber])
   @@map("claims")
 }
 
@@ -639,7 +656,7 @@ model Claim {
 model Reimbursement {
   id                  String    @id @default(uuid())
   organizationId      String    @map("organization_id")
-  reimbursementNumber String    @unique @map("reimbursement_number")
+  reimbursementNumber String    @map("reimbursement_number")
   insuredMemberId     String    @map("insured_member_id")
   description         String?
   requestedValue      Decimal   @map("requested_value") @db.Decimal(14, 2)
@@ -660,6 +677,7 @@ model Reimbursement {
   insuredMember InsuredMember @relation(fields: [insuredMemberId], references: [id])
 
   @@index([organizationId])
+  @@unique([organizationId, reimbursementNumber])
   @@map("reimbursements")
 }
 
@@ -852,7 +870,7 @@ model Role {
   id             String     @id @default(uuid())
   organizationId String     @map("organization_id")
   name           String
-  code           String     @unique
+  code           String
   description    String?
   isSystem       Boolean    @default(false) @map("is_system") // perfis do sistema não podem ser eliminados
   status         RoleStatus @default(active)
@@ -866,6 +884,7 @@ model Role {
   permissions  RolePermission[]
 
   @@index([organizationId])
+  @@unique([organizationId, code])
   @@map("roles")
 }
 

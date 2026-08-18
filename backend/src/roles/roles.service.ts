@@ -58,7 +58,9 @@ export class RolesService {
   }
 
   async create(organizationId: string, dto: CreateRoleDto, createdBy: string) {
-    const existing = await this.prisma.role.findUnique({ where: { code: dto.code } });
+    const existing = await this.prisma.role.findUnique({
+      where: { organizationId_code: { organizationId, code: dto.code } },
+    });
     if (existing) throw new ConflictException('Já existe um perfil com este código.');
 
     const role = await this.prisma.role.create({

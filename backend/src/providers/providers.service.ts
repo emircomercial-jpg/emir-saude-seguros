@@ -32,7 +32,9 @@ export class ProvidersService {
   }
 
   async create(organizationId: string, dto: CreateProviderDto, createdBy: string) {
-    const existing = await this.prisma.provider.findUnique({ where: { nif: dto.nif } });
+    const existing = await this.prisma.provider.findUnique({
+      where: { organizationId_nif: { organizationId, nif: dto.nif } },
+    });
     if (existing) throw new ConflictException('Já existe um prestador com este NIF.');
 
     const provider = await this.prisma.provider.create({ data: { organizationId, ...dto, createdBy } });

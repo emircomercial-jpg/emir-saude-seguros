@@ -144,7 +144,7 @@ async function main() {
   const roleRecords: Record<string, { id: string }> = {};
   for (const role of ROLES) {
     const record = await prisma.role.upsert({
-      where: { code: role.code },
+      where: { organizationId_code: { organizationId: organization.id, code: role.code } },
       update: {},
       create: { organizationId: organization.id, ...role },
     });

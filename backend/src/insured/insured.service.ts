@@ -113,11 +113,15 @@ export class InsuredService {
   }
 
   async create(organizationId: string, dto: CreateInsuredDto, createdBy: string) {
-    const duplicateDoc = await this.prisma.insuredMember.findUnique({ where: { idDocumentNumber: dto.idDocumentNumber } });
+    const duplicateDoc = await this.prisma.insuredMember.findUnique({
+      where: { organizationId_idDocumentNumber: { organizationId, idDocumentNumber: dto.idDocumentNumber } },
+    });
     if (duplicateDoc) throw new ConflictException('Já existe um segurado com este Bilhete de Identidade.');
 
     if (dto.nif) {
-      const duplicateNif = await this.prisma.insuredMember.findUnique({ where: { nif: dto.nif } });
+      const duplicateNif = await this.prisma.insuredMember.findUnique({
+        where: { organizationId_nif: { organizationId, nif: dto.nif } },
+      });
       if (duplicateNif) throw new ConflictException('Já existe um segurado com este NIF.');
     }
 
@@ -158,11 +162,15 @@ export class InsuredService {
   // (nunca um Segurado "órfão" sem apólice nem cartão, por exemplo, se o
   // pedido falhar a meio).
   async registerComplete(organizationId: string, dto: RegisterInsuredDto, createdBy: string) {
-    const duplicateDoc = await this.prisma.insuredMember.findUnique({ where: { idDocumentNumber: dto.idDocumentNumber } });
+    const duplicateDoc = await this.prisma.insuredMember.findUnique({
+      where: { organizationId_idDocumentNumber: { organizationId, idDocumentNumber: dto.idDocumentNumber } },
+    });
     if (duplicateDoc) throw new ConflictException('Já existe um segurado com este Bilhete de Identidade.');
 
     if (dto.nif) {
-      const duplicateNif = await this.prisma.insuredMember.findUnique({ where: { nif: dto.nif } });
+      const duplicateNif = await this.prisma.insuredMember.findUnique({
+        where: { organizationId_nif: { organizationId, nif: dto.nif } },
+      });
       if (duplicateNif) throw new ConflictException('Já existe um segurado com este NIF.');
     }
 
@@ -256,7 +264,9 @@ export class InsuredService {
     const existing = await this.findOne(id, organizationId);
 
     if (dto.nif && dto.nif !== existing.nif) {
-      const duplicateNif = await this.prisma.insuredMember.findUnique({ where: { nif: dto.nif } });
+      const duplicateNif = await this.prisma.insuredMember.findUnique({
+        where: { organizationId_nif: { organizationId, nif: dto.nif } },
+      });
       if (duplicateNif) throw new ConflictException('Já existe um segurado com este NIF.');
     }
 

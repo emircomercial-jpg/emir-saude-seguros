@@ -33,7 +33,9 @@ export class PlansService {
   }
 
   async create(organizationId: string, dto: CreatePlanDto, createdBy: string) {
-    const existing = await this.prisma.healthPlan.findUnique({ where: { code: dto.code } });
+    const existing = await this.prisma.healthPlan.findUnique({
+      where: { organizationId_code: { organizationId, code: dto.code } },
+    });
     if (existing) throw new ConflictException('Já existe um plano com este código.');
 
     const plan = await this.prisma.healthPlan.create({
