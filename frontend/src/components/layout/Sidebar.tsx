@@ -2,10 +2,12 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Shield, Users2, Building2, ShieldPlus, FileText, CreditCard,
   ClipboardList, Hospital, Stethoscope, Pill, FlaskConical, FileHeart, Undo2,
-  Receipt, Wallet, BarChart3, History, UserCog, KeyRound, Settings, X, Plug, Handshake, BookOpen,
+  Receipt, Wallet, BarChart3, History, UserCog, KeyRound, Settings, X, Plug, Handshake, BookOpen, Download,
 } from 'lucide-react';
 import { useUiStore } from '@/stores/uiStore';
 import { cn } from '@/utils/cn';
+import { downloadManual } from '@/utils/downloadManual';
+import { useInstallPrompt } from '@/hooks/useInstallPrompt';
 
 // Menu lateral (secção 14 do briefing). Os módulos de negócio ainda não
 // implementados nesta fase do projecto aparecem marcados como "Em
@@ -40,6 +42,7 @@ const NAV_ITEMS: { to: string; label: string; icon: any; enabled: boolean }[] = 
 
 function NavItems({ onNavigate }: { onNavigate?: () => void }) {
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
+  const { canInstall, promptInstall } = useInstallPrompt();
 
   return (
     <nav className="flex-1 overflow-y-auto py-3">
@@ -72,16 +75,25 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
           )}
         </NavLink>
       ))}
-      <a
-        href="/manual/manual-utilizador.pdf"
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={() => onNavigate?.()}
-        className="flex items-center gap-3 px-4 py-2.5 text-sm transition-colors border-l-4 border-transparent text-white/90 hover:bg-white/10 mt-2 border-t border-white/10 pt-3"
+      <button
+        onClick={async () => {
+          await downloadManual();
+          onNavigate?.();
+        }}
+        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors border-l-4 border-transparent text-white/90 hover:bg-white/10 mt-2 border-t border-white/10 pt-3"
       >
         <BookOpen size={18} className="shrink-0" />
-        {!collapsed && <span className="truncate flex-1">Manual do Utilizador</span>}
-      </a>
+        {!collapsed && <span className="truncate flex-1 text-left">Manual do Utilizador</span>}
+      </button>
+      {canInstall && (
+        <button
+          onClick={() => { promptInstall(); onNavigate?.(); }}
+          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors border-l-4 border-vital bg-vital/10 text-white hover:bg-vital/20"
+        >
+          <Download size={18} className="shrink-0" />
+          {!collapsed && <span className="truncate flex-1 text-left font-medium">Instalar Aplicativo</span>}
+        </button>
+      )}
     </nav>
   );
 }

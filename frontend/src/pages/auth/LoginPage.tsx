@@ -15,6 +15,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSlow, setIsSlow] = useState(false);
   const online = navigator.onLine;
   const navigate = useNavigate();
   const setAuth = useAuthStore((s) => s.setAuth);
@@ -28,6 +29,13 @@ export default function LoginPage() {
   async function onSubmit(values: LoginFormValues) {
     setServerError(null);
     setIsSubmitting(true);
+    setIsSlow(false);
+    // Se o pedido demorar mais do que uns segundos, é provavelmente o
+    // servidor a "acordar" de um período de inactividade (plano
+    // gratuito) — não uma falha de ligação. Mostra isso claramente, em
+    // vez de deixar a pessoa a pensar que a aplicação travou ou que
+    // perdeu a ligação à internet.
+    const slowTimer = setTimeout(() => setIsSlow(true), 4000);
     try {
       const result = await login(values.email, values.password);
       setAuth(result.accessToken, result.user);
@@ -35,7 +43,9 @@ export default function LoginPage() {
     } catch (error) {
       setServerError(getApiErrorMessage(error));
     } finally {
+      clearTimeout(slowTimer);
       setIsSubmitting(false);
+      setIsSlow(false);
     }
   }
 
@@ -103,6 +113,13 @@ export default function LoginPage() {
             Manter sessão iniciada
           </label>
 
+          {isSlow && (
+            <div className="rounded-md bg-institutional/10 text-institutional text-xs px-3 py-2 flex items-center gap-2">
+              <Loader2 size={13} className="animate-spin shrink-0" />
+              A ligar ao servidor — pode demorar até um minuto se estiver a ser usado pela primeira vez em alguns minutos. Não é uma falha, aguarda um pouco.
+            </div>
+          )}
+
           {serverError && (
             <div className="rounded-md bg-alert/10 text-alert text-sm px-3 py-2">{serverError}</div>
           )}
@@ -120,7 +137,7 @@ export default function LoginPage() {
 
         <div className="mt-6 flex items-center justify-center gap-1.5 text-xs text-text-secondary">
           {online ? <Wifi size={12} className="text-vital" /> : <WifiOff size={12} className="text-alert" />}
-          {online ? 'Ligado ao servidor' : 'Sem ligação'}
+          {online ? 'O teu dispositivo tem ligação à internet' : 'O teu dispositivo está sem ligação à internet'}
         </div>
 
         <p className="text-center text-[11px] text-text-secondary mt-4">
