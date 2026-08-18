@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { ScanLine, ShieldCheck, ShieldAlert } from 'lucide-react';
-import { validateCard } from '@/services/cardService';
+import { ScanLine, ShieldCheck, ShieldAlert, Printer, Loader2 } from 'lucide-react';
+import { validateCard, listCardsByInsured, printCardPdf } from '@/services/cardService';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,6 +17,17 @@ export default function CardsPage() {
 
   const mutation = useMutation({
     mutationFn: () => validateCard({ cardNumber: cardNumber || undefined, idDocumentNumber: idDocumentNumber || undefined }),
+  });
+
+  // Imprimir directamente a partir do resultado da validação — vai buscar
+  // o cartão activo mais recente da pessoa validada e abre logo o PDF.
+  const printMutation = useMutation({
+    mutationFn: async (insuredMemberId: string) => {
+      const cards = await listCardsByInsured(insuredMemberId);
+      const activeCard = cards.find((c) => c.status === 'active') ?? cards[0];
+      if (!activeCard) throw new Error('Esta pessoa ainda não tem nenhum cartão emitido.');
+      await printCardPdf(activeCard.id);
+    },
   });
 
   return (
@@ -49,7 +60,7 @@ export default function CardsPage() {
         <Card className="max-w-md">
           <CardContent className="p-5 flex items-start gap-3">
             <ShieldCheck className="text-vital shrink-0" size={24} />
-            <div>
+            <div className="flex-1">
               <p className="font-medium text-text-primary">{mutation.data.fullName}</p>
               <p className="text-sm text-text-secondary">Estado: {mutation.data.status}</p>
               <p className="text-sm text-text-secondary">Dependentes: {mutation.data.dependentsCount}</p>
@@ -57,6 +68,19 @@ export default function CardsPage() {
                 <p className="text-sm text-text-secondary">
                   Cartão válido até: {new Date(mutation.data.cardValidUntil).toLocaleDateString('pt-PT')}
                 </p>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                onClick={() => printMutation.mutate(mutation.data.insuredMemberId)}
+                disabled={printMutation.isPending}
+              >
+                {printMutation.isPending ? <Loader2 size={14} className="animate-spin mr-1.5" /> : <Printer size={14} className="mr-1.5" />}
+                Imprimir cartão
+              </Button>
+              {printMutation.isError && (
+                <p className="text-alert text-xs mt-1">{printMutation.error instanceof Error ? printMutation.error.message : 'Erro ao imprimir.'}</p>
               )}
             </div>
           </CardContent>

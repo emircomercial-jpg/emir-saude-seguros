@@ -181,6 +181,7 @@ export class CardsService {
     }
 
     return {
+      insuredMemberId: insured.id,
       fullName: insured.fullName,
       status: insured.status,
       cardValidUntil: card?.expiryDate,

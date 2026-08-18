@@ -51,6 +51,7 @@ export async function printCardPdf(cardId: string) {
 }
 
 export interface ValidateCardResult {
+  insuredMemberId: string;
   fullName: string;
   status: string;
   cardValidUntil?: string;
