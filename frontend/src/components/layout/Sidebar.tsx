@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Shield, Users2, Building2, ShieldPlus, FileText, CreditCard,
   ClipboardList, Hospital, Stethoscope, Pill, FlaskConical, FileHeart, Undo2,
-  Receipt, Wallet, BarChart3, History, UserCog, KeyRound, Settings, X, Plug, Handshake,
+  Receipt, Wallet, BarChart3, History, UserCog, KeyRound, Settings, X, Plug, Handshake, BookOpen,
 } from 'lucide-react';
 import { useUiStore } from '@/stores/uiStore';
 import { cn } from '@/utils/cn';
@@ -72,6 +72,16 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
           )}
         </NavLink>
       ))}
+      <a
+        href="/manual/manual-utilizador.pdf"
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={() => onNavigate?.()}
+        className="flex items-center gap-3 px-4 py-2.5 text-sm transition-colors border-l-4 border-transparent text-white/90 hover:bg-white/10 mt-2 border-t border-white/10 pt-3"
+      >
+        <BookOpen size={18} className="shrink-0" />
+        {!collapsed && <span className="truncate flex-1">Manual do Utilizador</span>}
+      </a>
     </nav>
   );
 }
