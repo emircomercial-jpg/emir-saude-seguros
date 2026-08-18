@@ -205,6 +205,8 @@ export class AuthService {
         email: user.email,
         avatarUrl: user.avatarUrl,
         isPlatformAdmin: user.isPlatformAdmin,
+        insuredMemberId: user.insuredMemberId,
+        providerId: user.providerId,
         roles: roles.map((r) => ({ id: r.role.id, name: r.role.name, code: r.role.code })),
       },
     };
@@ -385,6 +387,8 @@ export class AuthService {
       twoFactorEnabled: user.twoFactorEnabled,
       lastLoginAt: user.lastLoginAt,
       isPlatformAdmin: user.isPlatformAdmin,
+      insuredMemberId: user.insuredMemberId,
+      providerId: user.providerId,
       roles: user.roles.map((r) => ({ id: r.role.id, name: r.role.name, code: r.role.code })),
     };
   }

@@ -57,6 +57,20 @@ export class InsuredController {
     return { data, message: `Segurado registado com sucesso — apólice ${data.policy.policyNumber} e cartão ${data.card.cardNumber} emitidos.` };
   }
 
+  // Cria o acesso ao Portal do Cliente para este Segurado. Requer a
+  // mesma permissão que gerir Utilizadores, já que está a criar uma
+  // conta de acesso ao sistema.
+  @Post(':id/portal-access')
+  @RequirePermissions('users.create')
+  async createPortalAccess(
+    @Param('id') id: string,
+    @Body() body: { email: string },
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    const data = await this.insuredService.createPortalAccess(id, user.organizationId, body.email, user.userId);
+    return { data, message: 'Acesso ao Portal do Cliente criado com sucesso.' };
+  }
+
   @Patch(':id')
   @RequirePermissions('insured.update')
   async update(@Param('id') id: string, @Body() dto: UpdateInsuredDto, @CurrentUser() user: CurrentUserPayload) {

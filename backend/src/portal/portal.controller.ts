@@ -1,6 +1,9 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, NotFoundException, Param, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { PortalService } from './portal.service';
+import { generateCardPdf } from '../cards/card-print.util';
+import { generatePolicyContractPdf } from '../policies/policy-contract.util';
 import { CurrentUser, CurrentUserPayload } from '../common/decorators/current-user.decorator';
 
 // Estas rotas propositadamente NÃO usam @RequirePermissions — o acesso é
@@ -48,6 +51,36 @@ export class PortalController {
   async insuredPremiums(@CurrentUser() user: CurrentUserPayload) {
     const data = await this.portalService.getInsuredPremiums(user.insuredMemberId);
     return { data, message: 'Mensalidades do segurado.' };
+  }
+
+  // Documento do próprio Cartão de Seguro, em PDF, pronto a descarregar
+  // pelo cliente directamente do Portal.
+  @Get('insured/card.pdf')
+  async insuredCardPdf(@CurrentUser() user: CurrentUserPayload, @Res() res: Response) {
+    const card = await this.portalService.getInsuredActiveCard(user.insuredMemberId);
+    if (!card) throw new NotFoundException('Ainda não tens nenhum cartão emitido.');
+    const pdf = await generateCardPdf(card as any);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="cartao-${card.cardNumber}.pdf"`);
+    res.send(pdf);
+  }
+
+  // Documento completo da Apólice/contrato, em PDF, pronto a descarregar
+  // pelo cliente — só se a apólice pedida for mesmo dele.
+  @Get('insured/policies/:id/contract.pdf')
+  async insuredPolicyContractPdf(
+    @Param('id') id: string,
+    @CurrentUser() user: CurrentUserPayload,
+    @Res() res: Response,
+  ) {
+    const policy = await this.portalService.getInsuredPolicyForContract(id, user.insuredMemberId);
+    const buffer = await generatePolicyContractPdf(policy as any);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="apolice-${policy.policyNumber}.pdf"`,
+      'Content-Length': buffer.length,
+    });
+    res.send(buffer);
   }
 
   @Get('provider/profile')

@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import * as crypto from 'crypto';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../database/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { normalizePagination, buildPaginationMeta } from '../common/utils/pagination.util';
@@ -389,5 +390,54 @@ export class InsuredService {
     });
 
     return { message: 'Dependente excluído com sucesso.' };
+  }
+
+  // Cria o acesso ao Portal do Cliente para este Segurado, num só passo:
+  // gera uma senha temporária, cria a conta ligada a este Segurado (nunca
+  // com acesso administrativo — só ao seu próprio espaço), e atribui-lhe
+  // o perfil "Segurado". Devolve a senha gerada UMA ÚNICA VEZ, para dar ao
+  // cliente — nunca fica guardada em texto simples depois disto.
+  async createPortalAccess(insuredMemberId: string, organizationId: string, email: string, createdBy: string) {
+    const insured = await this.findOne(insuredMemberId, organizationId);
+
+    const existingByInsured = await this.prisma.user.findFirst({ where: { insuredMemberId } });
+    if (existingByInsured) throw new ConflictException('Este segurado já tem acesso ao portal.');
+
+    const existingByEmail = await this.prisma.user.findUnique({ where: { email } });
+    if (existingByEmail) throw new ConflictException('Já existe uma conta com este e-mail no sistema.');
+
+    const segurdoRole = await this.prisma.role.findFirst({ where: { organizationId, code: 'insured' } });
+    if (!segurdoRole) throw new BadRequestException('Perfil "Segurado" não encontrado nesta organização.');
+
+    // Senha temporária legível (evita caracteres ambíguos como 0/O, 1/l),
+    // fácil de comunicar ao cliente por telefone ou mensagem.
+    const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    const temporaryPassword = Array.from({ length: 10 }, () => alphabet[crypto.randomInt(alphabet.length)]).join('');
+    const passwordHash = await bcrypt.hash(temporaryPassword, 12);
+
+    const user = await this.prisma.user.create({
+      data: {
+        organizationId,
+        fullName: insured.fullName,
+        email,
+        passwordHash,
+        insuredMemberId,
+        mustChangePassword: true,
+        createdBy,
+        roles: { create: [{ roleId: segurdoRole.id }] },
+      },
+    });
+
+    await this.auditService.log({
+      organizationId,
+      userId: createdBy,
+      action: 'insured.portal_access_created',
+      module: 'insured',
+      entity: 'User',
+      entityId: user.id,
+      description: `Acesso ao Portal do Cliente criado para "${insured.fullName}" (${email}).`,
+    });
+
+    return { email: user.email, temporaryPassword };
   }
 }

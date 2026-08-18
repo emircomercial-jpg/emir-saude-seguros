@@ -14,6 +14,8 @@ export interface AuthUser {
   twoFactorEnabled?: boolean;
   lastLoginAt?: string | null;
   isPlatformAdmin?: boolean;
+  insuredMemberId?: string | null;
+  providerId?: string | null;
   roles: Role[];
 }
 

@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import ProtectedRoute from './ProtectedRoute';
 import PublicRoute from './PublicRoute';
+import { useAuthStore } from '@/stores/authStore';
 import AdminLayout from '@/components/layout/AdminLayout';
 import PortalLayout from '@/components/portal/PortalLayout';
 
@@ -55,6 +56,19 @@ function RouteFallback() {
   );
 }
 
+// Decide o destino certo para "/" (ou qualquer caminho não específico)
+// consoante o tipo de conta autenticada — nunca manda uma conta de
+// cliente/segurado para a área de gestão administrativa, onde nem sequer
+// tem permissões para ver nada. É também o endereço com que a aplicação
+// instalada (PWA) abre sempre, por isso este redireccionamento tem de
+// funcionar sempre, sem excepção.
+function RootRedirect() {
+  const user = useAuthStore((s) => s.user);
+  if (user?.insuredMemberId) return <Navigate to="/portal/segurado" replace />;
+  if (user?.providerId) return <Navigate to="/portal/prestador" replace />;
+  return <Navigate to="/dashboard" replace />;
+}
+
 // Árvore de rotas (secção 3 do briefing). Todas as rotas protegidas partilham
 // o layout administrativo (menu lateral + cabeçalho + breadcrumb + rodapé).
 export default function AppRoutes() {
@@ -68,6 +82,7 @@ export default function AppRoutes() {
         </Route>
 
         <Route element={<ProtectedRoute />}>
+          <Route path="/" element={<RootRedirect />} />
           <Route path="/portal/segurado" element={<PortalLayout title="Portal do Segurado" />}>
             <Route index element={<InsuredPortalPage />} />
           </Route>
@@ -102,7 +117,6 @@ export default function AppRoutes() {
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/audit" element={<AuditPage />} />
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
           </Route>
         </Route>
 

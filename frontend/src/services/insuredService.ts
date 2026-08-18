@@ -132,3 +132,14 @@ export async function addDependent(insuredId: string, payload: { relationship: s
 export async function removeDependent(dependentId: string) {
   await apiClient.delete(`/insured/dependents/${dependentId}`);
 }
+
+// Cria o acesso ao Portal do Cliente para este Segurado — devolve a senha
+// temporária UMA ÚNICA VEZ, para dar ao cliente (nunca fica recuperável
+// depois disto).
+export async function createPortalAccess(insuredId: string, email: string) {
+  const { data } = await apiClient.post<ApiSuccessResponse<{ email: string; temporaryPassword: string }>>(
+    `/insured/${insuredId}/portal-access`,
+    { email },
+  );
+  return data.data;
+}

@@ -2,11 +2,11 @@ import { useState, type FocusEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Plus, Search, MoreVertical, UserPlus2, Loader2, Trash2, CreditCard, MessageCircle, Users2, ShieldCheck, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Plus, Search, MoreVertical, UserPlus2, Loader2, Trash2, CreditCard, MessageCircle, Users2, ShieldCheck, CheckCircle2, AlertTriangle, Globe2 } from 'lucide-react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
   listInsured, registerInsured, deleteInsured, setInsuredStatus, addDependent,
-  removeDependent, getInsured, lookupInsuredByDocument, type InsuredMember,
+  removeDependent, getInsured, lookupInsuredByDocument, createPortalAccess, type InsuredMember,
 } from '@/services/insuredService';
 import { listPlans } from '@/services/planService';
 import { issueCard, listCardsByInsured, printCardPdf } from '@/services/cardService';
@@ -552,6 +552,14 @@ function ProfileDialog({ insured, onClose }: { insured: InsuredMember | null; on
     onError: (err) => toast.error(getApiErrorMessage(err)),
   });
 
+  const [portalEmail, setPortalEmail] = useState('');
+  const [portalCredentials, setPortalCredentials] = useState<{ email: string; temporaryPassword: string } | null>(null);
+  const portalAccessMutation = useMutation({
+    mutationFn: () => createPortalAccess(insured!.id, portalEmail),
+    onSuccess: (result) => setPortalCredentials(result),
+    onError: (err) => toast.error(getApiErrorMessage(err)),
+  });
+
   const person = freshInsured ?? insured;
   if (!insured) return null;
 
@@ -604,6 +612,38 @@ function ProfileDialog({ insured, onClose }: { insured: InsuredMember | null; on
                 {dep.fullName} <span className="text-text-secondary text-xs">({RELATIONSHIP_LABELS[dep.relationship] || dep.relationship})</span>
               </div>
             ))}
+          </div>
+
+          <div className="border-t pt-3">
+            <p className="text-sm font-medium mb-2 flex items-center gap-1.5"><Globe2 size={14} /> Portal do Cliente</p>
+            {portalCredentials ? (
+              <div className="bg-vital/10 border border-vital/30 rounded-md p-3 text-sm space-y-1">
+                <p className="font-medium text-vital">Acesso criado — dá estes dados ao cliente agora, não voltam a aparecer:</p>
+                <p><strong>E-mail:</strong> {portalCredentials.email}</p>
+                <p><strong>Senha temporária:</strong> <span className="font-mono">{portalCredentials.temporaryPassword}</span></p>
+                <p className="text-xs text-text-secondary">Vai pedir para mudar a senha no primeiro acesso.</p>
+              </div>
+            ) : (
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <Label className="text-xs">E-mail do cliente</Label>
+                  <Input
+                    type="email"
+                    className="mt-1"
+                    value={portalEmail}
+                    onChange={(e) => setPortalEmail(e.target.value)}
+                    placeholder="cliente@exemplo.com"
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => portalAccessMutation.mutate()}
+                  disabled={portalAccessMutation.isPending || !portalEmail}
+                >
+                  {portalAccessMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : 'Criar acesso'}
+                </Button>
+              </div>
+            )}
           </div>
         </DialogBody>
         <DialogFooter>

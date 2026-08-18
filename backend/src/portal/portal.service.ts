@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 
 // Portal de auto-serviço (extra além do briefing original): permite a um
@@ -61,6 +61,33 @@ export class PortalService {
       include: { payments: true },
       orderBy: { dueDate: 'desc' },
     });
+  }
+
+  // Devolve o cartão activo (ou o mais recente) do PRÓPRIO segurado
+  // autenticado — nunca de outro, mesmo que o ID de outro cartão seja
+  // adivinhado, porque a pesquisa parte sempre do insuredMemberId ligado
+  // à conta, nunca de um parâmetro na rota.
+  async getInsuredActiveCard(insuredMemberId?: string | null) {
+    const id = this.requireInsuredLink(insuredMemberId);
+    const cards = await this.prisma.insuranceCard.findMany({
+      where: { insuredMemberId: id },
+      include: { insuredMember: true },
+      orderBy: { issueDate: 'desc' },
+    });
+    return cards.find((c) => c.status === 'active') ?? cards[0] ?? null;
+  }
+
+  // Documento completo da apólice, mas só se o segurado autenticado for
+  // de facto um dos membros dessa apólice — nunca de outra apólice
+  // qualquer, mesmo que o ID seja adivinhado.
+  async getInsuredPolicyForContract(policyId: string, insuredMemberId?: string | null) {
+    const id = this.requireInsuredLink(insuredMemberId);
+    const policy = await this.prisma.policy.findFirst({
+      where: { id: policyId, members: { some: { insuredMemberId: id } } },
+      include: { plan: true, company: true, members: { include: { insuredMember: true } } },
+    });
+    if (!policy) throw new ForbiddenException('Apólice não encontrada ou não pertence a este segurado.');
+    return policy;
   }
 
   // ---------- Portal do Prestador ----------

@@ -39,7 +39,12 @@ export default function LoginPage() {
     try {
       const result = await login(values.email, values.password);
       setAuth(result.accessToken, result.user);
-      navigate('/dashboard');
+      // Contas de portal (clientes/segurados ou prestadores) vão para o
+      // seu próprio espaço — nunca para a área de gestão administrativa,
+      // que nem sequer têm permissões para ver.
+      if (result.user.insuredMemberId) navigate('/portal/segurado');
+      else if (result.user.providerId) navigate('/portal/prestador');
+      else navigate('/dashboard');
     } catch (error) {
       setServerError(getApiErrorMessage(error));
     } finally {
