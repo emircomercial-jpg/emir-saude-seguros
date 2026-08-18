@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useUiStore } from '@/stores/uiStore';
 import { cn } from '@/utils/cn';
-import { downloadManual } from '@/utils/downloadManual';
+import { downloadManual, downloadPrivacyPolicy } from '@/utils/downloadManual';
 import { useInstallPrompt } from '@/hooks/useInstallPrompt';
 
 // Menu lateral (secção 14 do briefing). Os módulos de negócio ainda não
@@ -84,6 +84,16 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
       >
         <BookOpen size={18} className="shrink-0" />
         {!collapsed && <span className="truncate flex-1 text-left">Manual do Utilizador</span>}
+      </button>
+      <button
+        onClick={async () => {
+          await downloadPrivacyPolicy();
+          onNavigate?.();
+        }}
+        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors border-l-4 border-transparent text-white/90 hover:bg-white/10"
+      >
+        <FileText size={18} className="shrink-0" />
+        {!collapsed && <span className="truncate flex-1 text-left">Política de Privacidade</span>}
       </button>
       {canInstall && (
         <button
