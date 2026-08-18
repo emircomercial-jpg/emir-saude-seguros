@@ -67,4 +67,52 @@ describe('PlatformService', () => {
       expect(auditMock.log).toHaveBeenCalledWith(expect.objectContaining({ action: 'platform.organization_status_changed' }));
     });
   });
+
+  describe('recordSubscriptionPayment', () => {
+    it('advances the due date by one month and reactivates a suspended organization', async () => {
+      prismaMock.organization.findUnique.mockResolvedValue({ id: 'org-1', name: 'Empresa Atrasada', status: 'suspended' });
+      prismaMock.organization.update.mockImplementation(({ data }: any) => Promise.resolve({ id: 'org-1', ...data }));
+
+      const result = await service.recordSubscriptionPayment('org-1', 'platform-admin-1');
+
+      expect(result.status).toBe('active');
+      expect(result.subscriptionLastPaymentAt).toBeInstanceOf(Date);
+      expect(auditMock.log).toHaveBeenCalledWith(expect.objectContaining({ action: 'platform.subscription_payment_recorded' }));
+    });
+
+    it('does not change the status of an organization that was never suspended', async () => {
+      prismaMock.organization.findUnique.mockResolvedValue({ id: 'org-1', name: 'Empresa Ok', status: 'active' });
+      prismaMock.organization.update.mockImplementation(({ data }: any) => Promise.resolve({ id: 'org-1', ...data }));
+
+      const result = await service.recordSubscriptionPayment('org-1', 'platform-admin-1');
+
+      expect(result.status).toBe('active');
+    });
+  });
+
+  describe('listOrganizations — cálculo automático de atraso', () => {
+    it('flags an organization as overdue once past the grace period', async () => {
+      const eightDaysAgo = new Date();
+      eightDaysAgo.setDate(eightDaysAgo.getDate() - 8);
+      prismaMock.organization.findMany.mockResolvedValue([
+        { id: 'org-1', name: 'Empresa Atrasada', subscriptionNextDueDate: eightDaysAgo, status: 'active', _count: { users: 1, insuredMembers: 0, policies: 0 } },
+      ]);
+
+      const result = await service.listOrganizations();
+
+      expect(result[0].isOverdue).toBe(true);
+    });
+
+    it('does not flag an organization still within the grace period', async () => {
+      const twoDaysAgo = new Date();
+      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+      prismaMock.organization.findMany.mockResolvedValue([
+        { id: 'org-1', name: 'Empresa Recente', subscriptionNextDueDate: twoDaysAgo, status: 'active', _count: { users: 1, insuredMembers: 0, policies: 0 } },
+      ]);
+
+      const result = await service.listOrganizations();
+
+      expect(result[0].isOverdue).toBe(false);
+    });
+  });
 });

@@ -1,10 +1,11 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { OrganizationStatus } from '@prisma/client';
+import { OrganizationStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { PERMISSIONS, ROLES } from './platform-defaults';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
+import { SetSubscriptionDto } from './dto/set-subscription.dto';
 
 @Injectable()
 export class PlatformService {
@@ -18,19 +19,32 @@ export class PlatformService {
       orderBy: { createdAt: 'desc' },
       include: { _count: { select: { users: true, insuredMembers: true, policies: true } } },
     });
-    return organizations.map((org) => ({
-      id: org.id,
-      name: org.name,
-      legalName: org.legalName,
-      nif: org.nif,
-      email: org.email,
-      phone: org.phone,
-      status: org.status,
-      createdAt: org.createdAt,
-      userCount: org._count.users,
-      insuredCount: org._count.insuredMembers,
-      policyCount: org._count.policies,
-    }));
+    const now = new Date();
+    return organizations.map((org) => {
+      let isOverdue = false;
+      if (org.subscriptionNextDueDate) {
+        const graceDeadline = new Date(org.subscriptionNextDueDate);
+        graceDeadline.setDate(graceDeadline.getDate() + 5);
+        isOverdue = graceDeadline < now;
+      }
+      return {
+        id: org.id,
+        name: org.name,
+        legalName: org.legalName,
+        nif: org.nif,
+        email: org.email,
+        phone: org.phone,
+        status: org.status,
+        createdAt: org.createdAt,
+        userCount: org._count.users,
+        insuredCount: org._count.insuredMembers,
+        policyCount: org._count.policies,
+        subscriptionValue: org.subscriptionValue,
+        subscriptionNextDueDate: org.subscriptionNextDueDate,
+        subscriptionLastPaymentAt: org.subscriptionLastPaymentAt,
+        isOverdue,
+      };
+    });
   }
 
   // Cria uma empresa cliente nova, completa e pronta a usar: a própria
@@ -126,6 +140,66 @@ export class PlatformService {
       entity: 'Organization',
       entityId: id,
       description: `Estado da empresa "${organization.name}" alterado para "${status}" pelo administrador da plataforma.`,
+    });
+
+    return updated;
+  }
+
+  // Define (ou actualiza) o valor e a data de vencimento da assinatura
+  // desta empresa cliente ao software.
+  async setSubscription(id: string, dto: SetSubscriptionDto, updatedByPlatformAdminId: string) {
+    const organization = await this.prisma.organization.findUnique({ where: { id } });
+    if (!organization) throw new NotFoundException('Empresa não encontrada.');
+
+    const updated = await this.prisma.organization.update({
+      where: { id },
+      data: {
+        subscriptionValue: dto.subscriptionValue as unknown as Prisma.Decimal,
+        subscriptionNextDueDate: new Date(dto.subscriptionNextDueDate),
+      },
+    });
+
+    await this.auditService.log({
+      organizationId: id,
+      userId: updatedByPlatformAdminId,
+      action: 'platform.subscription_set',
+      module: 'platform',
+      entity: 'Organization',
+      entityId: id,
+      description: `Assinatura da empresa "${organization.name}" definida: ${dto.subscriptionValue} Kz/mês, vencimento em ${dto.subscriptionNextDueDate}.`,
+    });
+
+    return updated;
+  }
+
+  // Regista um pagamento da assinatura — avança a data de vencimento em 1
+  // mês a partir de hoje, e reactiva automaticamente a empresa se estava
+  // suspensa (o acesso volta de imediato, sem precisar de outra acção).
+  async recordSubscriptionPayment(id: string, registeredByPlatformAdminId: string) {
+    const organization = await this.prisma.organization.findUnique({ where: { id } });
+    if (!organization) throw new NotFoundException('Empresa não encontrada.');
+
+    const now = new Date();
+    const nextDueDate = new Date(now);
+    nextDueDate.setMonth(nextDueDate.getMonth() + 1);
+
+    const updated = await this.prisma.organization.update({
+      where: { id },
+      data: {
+        subscriptionLastPaymentAt: now,
+        subscriptionNextDueDate: nextDueDate,
+        status: organization.status === 'suspended' ? 'active' : organization.status,
+      },
+    });
+
+    await this.auditService.log({
+      organizationId: id,
+      userId: registeredByPlatformAdminId,
+      action: 'platform.subscription_payment_recorded',
+      module: 'platform',
+      entity: 'Organization',
+      entityId: id,
+      description: `Pagamento da assinatura da empresa "${organization.name}" registado. Próximo vencimento: ${nextDueDate.toLocaleDateString('pt-PT')}.`,
     });
 
     return updated;

@@ -789,6 +789,15 @@ model Organization {
   logoUrl   String?            @map("logo_url")
   status    OrganizationStatus @default(active)
 
+  // Assinatura desta empresa cliente ao próprio software (o que ELA paga
+  // para usar o sistema — não confundir com Premium/Payment, que são as
+  // mensalidades que OS SEGURADOS pagam a ela). Nulo enquanto não for
+  // definida (ex: a primeira organização, que é a própria dona do
+  // software, nunca precisa disto).
+  subscriptionValue  Decimal?  @map("subscription_value") @db.Decimal(14, 2)
+  subscriptionNextDueDate DateTime? @map("subscription_next_due_date")
+  subscriptionLastPaymentAt DateTime? @map("subscription_last_payment_at")
+
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
