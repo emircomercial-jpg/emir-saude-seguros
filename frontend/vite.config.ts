@@ -57,6 +57,14 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Assim que uma versão nova do Service Worker termina de instalar,
+        // assume controlo imediatamente (em vez de esperar que todas as
+        // abas antigas sejam fechadas primeiro) — combinado com a
+        // verificação activa em main.tsx, garante que uma actualização
+        // publicada chega sempre a quem já tem a aplicação aberta, sem
+        // precisar de limpar a cache manualmente.
+        skipWaiting: true,
+        clientsClaim: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
         navigateFallback: '/offline.html',
         navigateFallbackDenylist: [/^\/api/],
