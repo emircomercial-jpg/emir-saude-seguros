@@ -13,6 +13,7 @@ export interface AuthUser {
   status?: string;
   twoFactorEnabled?: boolean;
   lastLoginAt?: string | null;
+  isPlatformAdmin?: boolean;
   roles: Role[];
 }
 

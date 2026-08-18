@@ -2,9 +2,10 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Shield, Users2, Building2, ShieldPlus, FileText, CreditCard,
   ClipboardList, Hospital, Stethoscope, Pill, FlaskConical, FileHeart, Undo2,
-  Receipt, Wallet, BarChart3, History, UserCog, KeyRound, Settings, X, Plug, Handshake, BookOpen, Download,
+  Receipt, Wallet, BarChart3, History, UserCog, KeyRound, Settings, X, Plug, Handshake, BookOpen, Download, Building,
 } from 'lucide-react';
 import { useUiStore } from '@/stores/uiStore';
+import { useAuthStore } from '@/stores/authStore';
 import { cn } from '@/utils/cn';
 import { downloadManual, downloadPrivacyPolicy } from '@/utils/downloadManual';
 import { useInstallPrompt } from '@/hooks/useInstallPrompt';
@@ -43,6 +44,7 @@ const NAV_ITEMS: { to: string; label: string; icon: any; enabled: boolean }[] = 
 function NavItems({ onNavigate }: { onNavigate?: () => void }) {
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const { canInstall, promptInstall } = useInstallPrompt();
+  const isPlatformAdmin = useAuthStore((s) => s.user?.isPlatformAdmin);
 
   return (
     <nav className="flex-1 overflow-y-auto py-3">
@@ -75,6 +77,21 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
           )}
         </NavLink>
       ))}
+      {isPlatformAdmin && (
+        <NavLink
+          to="/plataforma"
+          onClick={() => onNavigate?.()}
+          className={({ isActive }) =>
+            cn(
+              'flex items-center gap-3 px-4 py-2.5 text-sm transition-colors border-l-4 border-t border-white/10 mt-1 pt-3.5',
+              isActive ? 'bg-vital/20 border-vital text-white' : 'border-vital/60 text-white/90 hover:bg-white/10',
+            )
+          }
+        >
+          <Building size={18} className="shrink-0" />
+          {!collapsed && <span className="truncate flex-1 font-medium">Plataforma</span>}
+        </NavLink>
+      )}
       <button
         onClick={async () => {
           await downloadManual();

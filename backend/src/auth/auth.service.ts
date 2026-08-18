@@ -75,9 +75,9 @@ export class AuthService {
     });
   }
 
-  private signAccessToken(user: { id: string; email: string; organizationId: string }): string {
+  private signAccessToken(user: { id: string; email: string; organizationId: string; isPlatformAdmin?: boolean }): string {
     return this.jwtService.sign(
-      { sub: user.id, email: user.email, organizationId: user.organizationId },
+      { sub: user.id, email: user.email, organizationId: user.organizationId, isPlatformAdmin: user.isPlatformAdmin ?? false },
       {
         secret: this.config.get<string>('jwt.accessSecret'),
         expiresIn: this.config.get<string>('jwt.accessExpiresIn'),
@@ -204,6 +204,7 @@ export class AuthService {
         fullName: user.fullName,
         email: user.email,
         avatarUrl: user.avatarUrl,
+        isPlatformAdmin: user.isPlatformAdmin,
         roles: roles.map((r) => ({ id: r.role.id, name: r.role.name, code: r.role.code })),
       },
     };
@@ -383,6 +384,7 @@ export class AuthService {
       status: user.status,
       twoFactorEnabled: user.twoFactorEnabled,
       lastLoginAt: user.lastLoginAt,
+      isPlatformAdmin: user.isPlatformAdmin,
       roles: user.roles.map((r) => ({ id: r.role.id, name: r.role.name, code: r.role.code })),
     };
   }

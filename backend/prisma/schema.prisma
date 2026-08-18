@@ -836,6 +836,11 @@ model User {
   lastLoginAt         DateTime?  @map("last_login_at")
   failedLoginAttempts Int        @default(0) @map("failed_login_attempts")
   lockedUntil         DateTime?  @map("locked_until")
+  // Acesso especial, independente da organização a que pertence — permite
+  // criar e gerir novas empresas clientes (novos "inquilinos") no sistema.
+  // Nunca activado por omissão; só o dono/operador do próprio software
+  // (quem vende o sistema a outras empresas) deve ter isto activado.
+  isPlatformAdmin     Boolean    @default(false) @map("is_platform_admin")
 
   // Ligação opcional a um Segurado ou Prestador, para acesso ao portal de
   // auto-serviço (secção "extras" além do briefing original). Um utilizador

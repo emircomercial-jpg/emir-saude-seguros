@@ -35,6 +35,7 @@ const FinancePage = lazy(() => import('@/pages/finance/FinancePage'));
 const ReportsPage = lazy(() => import('@/pages/reports/ReportsPage'));
 const IntegrationsPage = lazy(() => import('@/pages/integrations/IntegrationsPage'));
 const AgreementsPage = lazy(() => import('@/pages/agreements/AgreementsPage'));
+const PlatformPage = lazy(() => import('@/pages/platform/PlatformPage'));
 const InsuredPortalPage = lazy(() => import('@/pages/portal/InsuredPortalPage'));
 const ProviderPortalPage = lazy(() => import('@/pages/portal/ProviderPortalPage'));
 const RolesPage = lazy(() => import('@/pages/roles/RolesPage'));
@@ -96,6 +97,7 @@ export default function AppRoutes() {
             <Route path="/relatorios" element={<ReportsPage />} />
             <Route path="/integracoes" element={<IntegrationsPage />} />
             <Route path="/convenios" element={<AgreementsPage />} />
+            <Route path="/plataforma" element={<PlatformPage />} />
             <Route path="/roles" element={<RolesPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/audit" element={<AuditPage />} />

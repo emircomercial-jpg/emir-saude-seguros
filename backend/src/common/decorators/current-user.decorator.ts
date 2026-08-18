@@ -8,6 +8,9 @@ export interface CurrentUserPayload {
   // a uma entidade específica — ver secção "Portal de auto-serviço".
   insuredMemberId?: string | null;
   providerId?: string | null;
+  // Acesso especial, independente da organização — permite criar e gerir
+  // novas empresas clientes. Ver PlatformAdminGuard.
+  isPlatformAdmin?: boolean;
 }
 
 // Extrai o utilizador autenticado directamente do pedido, já validado pelo
