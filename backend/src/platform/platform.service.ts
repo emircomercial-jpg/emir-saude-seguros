@@ -56,63 +56,77 @@ export class PlatformService {
   // perfis, e primeiro utilizador administrador, tudo numa única
   // transacção. Usado tanto pela criação manual (administrador da
   // plataforma) como pelo auto-registo público (ver selfRegisterOrganization).
+  //
+  // Optimizado para usar o mínimo de pedidos possível à base de dados
+  // (poucos pedidos em lote, em vez de um pedido por cada permissão/perfil
+  // individualmente) — com ~85 permissões e 16 perfis, uma abordagem
+  // pedido-a-pedido facilmente ultrapassa o tempo limite da transacção
+  // quando a latência real da rede até à base de dados entra em jogo
+  // (bem mais lenta do que numa base de dados local).
   private async createOrganizationCore(dto: CreateOrganizationDto) {
     const existingUser = await this.prisma.user.findUnique({ where: { email: dto.adminEmail } });
     if (existingUser) throw new ConflictException('Já existe um utilizador com este e-mail no sistema.');
 
-    return this.prisma.$transaction(async (tx) => {
-      const organization = await tx.organization.create({
-        data: {
-          name: dto.name,
-          legalName: dto.legalName,
-          nif: dto.nif,
-          phone: dto.phone,
-          email: dto.adminEmail,
-          status: 'active',
-        },
-      });
+    const allCodes = PERMISSIONS.map((p) => `${p.module}.${p.action}`);
 
-      // Permissões (catálogo global — cria só as que ainda não existirem).
-      const permissionRecords: { id: string; code: string }[] = [];
-      for (const perm of PERMISSIONS) {
-        const code = `${perm.module}.${perm.action}`;
-        let record = await tx.permission.findUnique({ where: { code } });
-        if (!record) {
-          record = await tx.permission.create({ data: { module: perm.module, action: perm.action, code } });
-        }
-        permissionRecords.push(record);
-      }
-
-      // Perfis (agora só únicos DENTRO desta organização — outra empresa
-      // pode ter perfis com os mesmos códigos, sem conflito).
-      let superadminRoleId = '';
-      for (const role of ROLES) {
-        const record = await tx.role.create({
-          data: { organizationId: organization.id, name: role.name, code: role.code, isSystem: role.isSystem },
+    return this.prisma.$transaction(
+      async (tx) => {
+        const organization = await tx.organization.create({
+          data: {
+            name: dto.name,
+            legalName: dto.legalName,
+            nif: dto.nif,
+            phone: dto.phone,
+            email: dto.adminEmail,
+            status: 'active',
+          },
         });
-        if (role.code === 'superadmin') superadminRoleId = record.id;
-      }
 
-      // Superadministrador desta nova empresa recebe todas as permissões.
-      for (const perm of permissionRecords) {
-        await tx.rolePermission.create({ data: { roleId: superadminRoleId, permissionId: perm.id } });
-      }
+        // Permissões (catálogo global) — um único pedido para ver quais já
+        // existem, um único pedido em lote para criar as que faltam.
+        const existingPermissions = await tx.permission.findMany({ where: { code: { in: allCodes } } });
+        const existingCodes = new Set(existingPermissions.map((p) => p.code));
+        const missingPermissions = PERMISSIONS.filter((p) => !existingCodes.has(`${p.module}.${p.action}`));
+        if (missingPermissions.length > 0) {
+          await tx.permission.createMany({
+            data: missingPermissions.map((p) => ({ module: p.module, action: p.action, code: `${p.module}.${p.action}` })),
+            skipDuplicates: true,
+          });
+        }
+        const allPermissions = await tx.permission.findMany({ where: { code: { in: allCodes } } });
 
-      // Primeiro utilizador administrador desta empresa.
-      const passwordHash = await bcrypt.hash(dto.adminPassword, 12);
-      const adminUser = await tx.user.create({
-        data: {
-          organizationId: organization.id,
-          fullName: dto.adminFullName,
-          email: dto.adminEmail,
-          passwordHash,
-          status: 'active',
-        },
-      });
-      await tx.userRole.create({ data: { userId: adminUser.id, roleId: superadminRoleId } });
+        // Perfis — criados em lote, depois lidos de volta para saber os
+        // IDs (createMany não devolve os registos criados).
+        await tx.role.createMany({
+          data: ROLES.map((role) => ({ organizationId: organization.id, name: role.name, code: role.code, isSystem: role.isSystem })),
+        });
+        const createdRoles = await tx.role.findMany({ where: { organizationId: organization.id } });
+        const superadminRole = createdRoles.find((r) => r.code === 'superadmin')!;
 
-      return { organization, adminUser };
-    });
+        // Superadministrador desta nova empresa recebe todas as
+        // permissões — um único pedido em lote.
+        await tx.rolePermission.createMany({
+          data: allPermissions.map((perm) => ({ roleId: superadminRole.id, permissionId: perm.id })),
+          skipDuplicates: true,
+        });
+
+        // Primeiro utilizador administrador desta empresa.
+        const passwordHash = await bcrypt.hash(dto.adminPassword, 12);
+        const adminUser = await tx.user.create({
+          data: {
+            organizationId: organization.id,
+            fullName: dto.adminFullName,
+            email: dto.adminEmail,
+            passwordHash,
+            status: 'active',
+          },
+        });
+        await tx.userRole.create({ data: { userId: adminUser.id, roleId: superadminRole.id } });
+
+        return { organization, adminUser };
+      },
+      { timeout: 20_000 },
+    );
   }
 
   async createOrganization(dto: CreateOrganizationDto, createdByPlatformAdminId: string) {

@@ -27,14 +27,20 @@ describe('PlatformService', () => {
       await expect(service.createOrganization(dto as any, 'platform-admin-1')).rejects.toThrow(ConflictException);
     });
 
-    it('creates the organization, roles, permissions, and first admin atomically', async () => {
+    it('creates the organization, roles, permissions, and first admin atomically, using batched queries', async () => {
       prismaMock.user.findUnique.mockResolvedValue(null);
 
       const txMock = {
         organization: { create: jest.fn().mockResolvedValue({ id: 'org-2', name: dto.name }) },
-        permission: { findUnique: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'perm-1', code: 'dashboard.view' }) },
-        role: { create: jest.fn().mockResolvedValue({ id: 'role-superadmin' }) },
-        rolePermission: { create: jest.fn().mockResolvedValue({}) },
+        permission: {
+          findMany: jest.fn().mockResolvedValue([{ id: 'perm-1', code: 'dashboard.view' }]),
+          createMany: jest.fn().mockResolvedValue({ count: 84 }),
+        },
+        role: {
+          createMany: jest.fn().mockResolvedValue({ count: 16 }),
+          findMany: jest.fn().mockResolvedValue([{ id: 'role-superadmin', code: 'superadmin' }, { id: 'role-admin', code: 'admin' }]),
+        },
+        rolePermission: { createMany: jest.fn().mockResolvedValue({ count: 85 }) },
         user: { create: jest.fn().mockResolvedValue({ id: 'user-1', email: dto.adminEmail, fullName: dto.adminFullName }) },
         userRole: { create: jest.fn().mockResolvedValue({}) },
       };
@@ -43,8 +49,15 @@ describe('PlatformService', () => {
       const result = await service.createOrganization(dto as any, 'platform-admin-1');
 
       expect(txMock.organization.create).toHaveBeenCalled();
+      expect(txMock.permission.createMany).toHaveBeenCalled();
+      expect(txMock.role.createMany).toHaveBeenCalled();
+      expect(txMock.rolePermission.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.arrayContaining([expect.objectContaining({ roleId: 'role-superadmin' })]) }),
+      );
       expect(txMock.user.create).toHaveBeenCalled();
-      expect(txMock.userRole.create).toHaveBeenCalled();
+      expect(txMock.userRole.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { userId: 'user-1', roleId: 'role-superadmin' } }),
+      );
       expect(result.organization.id).toBe('org-2');
       expect(result.admin.email).toBe(dto.adminEmail);
       expect(auditMock.log).toHaveBeenCalledWith(expect.objectContaining({ action: 'platform.organization_created' }));
