@@ -3,6 +3,7 @@ import { NotificationsService } from './notifications.service';
 import { RequirePermissions } from '../common/decorators/permissions.decorator';
 import { CurrentUser, CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { NotificationsCronGuard } from './notifications-cron.guard';
+import { Public } from '../common/decorators/public.decorator';
 
 @Controller('notifications')
 export class NotificationsController {
@@ -22,10 +23,12 @@ export class NotificationsController {
 
   // Gatilho externo, para ser chamado uma vez por dia por um serviço de
   // cron gratuito (ex: cron-job.org) — corre para TODAS as organizações
-  // activas. Protegido por uma chave secreta própria (NOTIFICATIONS_CRON_SECRET),
-  // nunca pela sessão de um utilizador, já que quem chama é um serviço
-  // externo, não uma pessoa autenticada.
+  // activas. @Public() porque quem chama é um serviço externo sem sessão
+  // de utilizador nenhuma — a protecção aqui é a chave secreta
+  // (NOTIFICATIONS_CRON_SECRET), verificada pelo NotificationsCronGuard,
+  // nunca a verificação normal de sessão.
   @Post('run-scheduled-checks')
+  @Public()
   @UseGuards(NotificationsCronGuard)
   async runScheduledChecks() {
     const data = await this.notificationsService.runChecksForAllOrganizations();
