@@ -63,6 +63,13 @@ export default () => ({
     cronSecret: process.env.NOTIFICATIONS_CRON_SECRET,
   },
 
+  // E-mail do dono da plataforma (quem vende o sistema a outras empresas)
+  // — recebe um alerta sempre que uma nova empresa se auto-regista
+  // publicamente, através do formulário público em /adotar.
+  platform: {
+    ownerEmail: process.env.PLATFORM_OWNER_EMAIL || 'emircomercial@gmail.com',
+  },
+
   localization: {
     timezone: process.env.TIMEZONE || 'Africa/Luanda',
     language: process.env.DEFAULT_LANGUAGE || 'pt',

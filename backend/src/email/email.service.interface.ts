@@ -15,6 +15,10 @@ export interface EmailService {
   sendAuthorizationDecisionNotification(to: string, fullName: string, requestNumber: string, status: string): Promise<void>;
   sendOverduePremiumNotification(to: string, fullName: string, dueDate: Date, value: number): Promise<void>;
   sendPolicyRenewalReminder(to: string, fullName: string, policyNumber: string, endDate: Date, daysRemaining: number): Promise<void>;
+
+  // Alerta ao dono da plataforma sempre que uma nova empresa se auto-regista
+  // publicamente, para nunca ficar sem saber quem está a usar o sistema.
+  sendNewOrganizationSelfSignupAlert(to: string, organizationName: string, adminEmail: string): Promise<void>;
 }
 
 export const EMAIL_SERVICE = 'EMAIL_SERVICE';

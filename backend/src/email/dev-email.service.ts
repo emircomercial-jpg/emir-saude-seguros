@@ -60,4 +60,12 @@ export class DevEmailService implements EmailService {
       'Contacte-nos para renovar e manter a sua cobertura de saúde activa, sem interrupções.',
     ]);
   }
+
+  async sendNewOrganizationSelfSignupAlert(to: string, organizationName: string, adminEmail: string): Promise<void> {
+    this.print('Nova empresa registada na plataforma', to, [
+      `Uma nova empresa acabou de se registar sozinha: "${organizationName}".`,
+      `Administrador inicial: ${adminEmail}`,
+      'Consulta a página Plataforma para veres os detalhes e, se necessário, ajustares a assinatura.',
+    ]);
+  }
 }

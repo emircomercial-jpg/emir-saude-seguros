@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Shield, Users2, Building2, ShieldPlus, FileText, CreditCard,
@@ -41,9 +42,70 @@ const NAV_ITEMS: { to: string; label: string; icon: any; enabled: boolean }[] = 
   { to: '/convenios', label: 'Convénios', icon: Handshake, enabled: true },
 ];
 
+function detectPlatform(): 'ios' | 'android' | 'desktop' {
+  const ua = navigator.userAgent;
+  if (/iPhone|iPad|iPod/.test(ua)) return 'ios';
+  if (/Android/.test(ua)) return 'android';
+  return 'desktop';
+}
+
+const INSTALL_INSTRUCTIONS: Record<'ios' | 'android' | 'desktop', string[]> = {
+  ios: [
+    'Toca no botão Partilhar (o quadrado com a seta para cima), na barra do Safari.',
+    'Desce e escolhe "Adicionar ao Ecrã Principal".',
+    'Confirma tocando em "Adicionar", no canto superior direito.',
+  ],
+  android: [
+    'Toca nos três pontos, no canto superior direito do Chrome.',
+    'Escolhe "Instalar aplicação" ou "Adicionar ao ecrã principal".',
+    'Confirma a instalação.',
+  ],
+  desktop: [
+    'Procura o ícone de instalação (um monitor com uma seta), na barra de endereço do browser.',
+    'Se não aparecer, abre o menu do browser (três pontos) e procura "Instalar EMIR SAÚDE SEGUROS".',
+  ],
+};
+
+function InstallAppButton({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
+  const { canInstall, installed, promptInstall } = useInstallPrompt();
+  const [showManualInstructions, setShowManualInstructions] = useState(false);
+
+  if (installed) return null;
+
+  return (
+    <>
+      <button
+        onClick={() => {
+          if (canInstall) { promptInstall(); onNavigate?.(); }
+          else setShowManualInstructions(true);
+        }}
+        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors border-l-4 border-vital bg-vital/10 text-white hover:bg-vital/20"
+      >
+        <Download size={18} className="shrink-0" />
+        {!collapsed && <span className="truncate flex-1 text-left font-medium">Instalar Aplicativo</span>}
+      </button>
+      {showManualInstructions && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowManualInstructions(false)}>
+          <div className="bg-card rounded-lg p-5 max-w-sm w-full text-text-primary" onClick={(e) => e.stopPropagation()}>
+            <p className="font-medium mb-3">Como instalar no teu dispositivo</p>
+            <ol className="list-decimal list-inside space-y-2 text-sm text-text-secondary">
+              {INSTALL_INSTRUCTIONS[detectPlatform()].map((step, i) => <li key={i}>{step}</li>)}
+            </ol>
+            <button
+              onClick={() => setShowManualInstructions(false)}
+              className="mt-4 w-full py-2 bg-institutional text-white rounded-md text-sm"
+            >
+              Percebi
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function NavItems({ onNavigate }: { onNavigate?: () => void }) {
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
-  const { canInstall, promptInstall } = useInstallPrompt();
   const isPlatformAdmin = useAuthStore((s) => s.user?.isPlatformAdmin);
 
   return (
@@ -112,15 +174,7 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
         <FileText size={18} className="shrink-0" />
         {!collapsed && <span className="truncate flex-1 text-left">Política de Privacidade</span>}
       </button>
-      {canInstall && (
-        <button
-          onClick={() => { promptInstall(); onNavigate?.(); }}
-          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors border-l-4 border-vital bg-vital/10 text-white hover:bg-vital/20"
-        >
-          <Download size={18} className="shrink-0" />
-          {!collapsed && <span className="truncate flex-1 text-left font-medium">Instalar Aplicativo</span>}
-        </button>
-      )}
+      <InstallAppButton collapsed={collapsed} onNavigate={onNavigate} />
     </nav>
   );
 }

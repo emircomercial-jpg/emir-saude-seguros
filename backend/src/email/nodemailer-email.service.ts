@@ -125,4 +125,16 @@ export class NodemailerEmailService implements EmailService {
       `),
     );
   }
+
+  async sendNewOrganizationSelfSignupAlert(to: string, organizationName: string, adminEmail: string): Promise<void> {
+    await this.send(
+      to,
+      'Nova empresa registada na plataforma',
+      this.wrap('Nova empresa registada', `
+        <p>Uma nova empresa acabou de se registar sozinha: <strong>${organizationName}</strong>.</p>
+        <p>Administrador inicial: <strong>${adminEmail}</strong></p>
+        <p>Consulta a página Plataforma para veres os detalhes e, se necessário, ajustares a assinatura.</p>
+      `),
+    );
+  }
 }

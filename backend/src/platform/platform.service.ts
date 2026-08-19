@@ -52,11 +52,15 @@ export class PlatformService {
   // seed original — ver platform-defaults.ts), o perfil Superadministrador
   // com acesso total, e o primeiro utilizador administrador dessa empresa.
   // Tudo numa única transacção — ou fica tudo criado, ou nada fica.
-  async createOrganization(dto: CreateOrganizationDto, createdByPlatformAdminId: string) {
+  // Núcleo da criação de uma empresa cliente — organização, permissões,
+  // perfis, e primeiro utilizador administrador, tudo numa única
+  // transacção. Usado tanto pela criação manual (administrador da
+  // plataforma) como pelo auto-registo público (ver selfRegisterOrganization).
+  private async createOrganizationCore(dto: CreateOrganizationDto) {
     const existingUser = await this.prisma.user.findUnique({ where: { email: dto.adminEmail } });
     if (existingUser) throw new ConflictException('Já existe um utilizador com este e-mail no sistema.');
 
-    const result = await this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx) => {
       const organization = await tx.organization.create({
         data: {
           name: dto.name,
@@ -109,6 +113,10 @@ export class PlatformService {
 
       return { organization, adminUser };
     });
+  }
+
+  async createOrganization(dto: CreateOrganizationDto, createdByPlatformAdminId: string) {
+    const result = await this.createOrganizationCore(dto);
 
     await this.auditService.log({
       organizationId: result.organization.id,
@@ -118,6 +126,30 @@ export class PlatformService {
       entity: 'Organization',
       entityId: result.organization.id,
       description: `Nova empresa cliente "${result.organization.name}" criada pelo administrador da plataforma, com o administrador inicial "${result.adminUser.email}".`,
+    });
+
+    return {
+      organization: result.organization,
+      admin: { id: result.adminUser.id, email: result.adminUser.email, fullName: result.adminUser.fullName },
+    };
+  }
+
+  // Auto-registo público — qualquer empresa interessada pode criar a sua
+  // própria conta, imediatamente utilizável, sem precisar de aprovação
+  // manual. Regista de forma diferente no histórico (para se distinguir
+  // claramente das empresas criadas manualmente pelo administrador da
+  // plataforma) e nunca é chamado com uma sessão de utilizador associada.
+  async selfRegisterOrganization(dto: CreateOrganizationDto) {
+    const result = await this.createOrganizationCore(dto);
+
+    await this.auditService.log({
+      organizationId: result.organization.id,
+      userId: result.adminUser.id,
+      action: 'platform.organization_self_registered',
+      module: 'platform',
+      entity: 'Organization',
+      entityId: result.organization.id,
+      description: `Nova empresa cliente "${result.organization.name}" registada por auto-registo público, com o administrador inicial "${result.adminUser.email}".`,
     });
 
     return {
