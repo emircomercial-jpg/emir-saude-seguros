@@ -58,6 +58,7 @@ export class PaymentsService {
       },
       include: { insuredMember: true, company: true, payments: true },
       orderBy: { dueDate: 'desc' },
+      take: 1000, // limite de seguranca (auditoria) - evita devolver toda a tabela de uma vez
     });
   }
 
@@ -151,6 +152,7 @@ export class PaymentsService {
       where: { insuredMemberId },
       include: { payments: true },
       orderBy: { referenceMonth: 'desc' },
+      take: 1000, // limite de seguranca (auditoria) - evita devolver toda a tabela de uma vez
     });
   }
 }

@@ -98,6 +98,7 @@ export class ConsultationsService {
       where: { organizationId, insuredMemberId: insuredMemberId || undefined },
       include: { insuredMember: true, provider: true },
       orderBy: { date: 'desc' },
+      take: 1000, // limite de seguranca (auditoria) - evita devolver toda a tabela de uma vez
     });
   }
 }

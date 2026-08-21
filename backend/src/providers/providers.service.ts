@@ -22,6 +22,7 @@ export class ProvidersService {
         ...(filters.search ? { name: { contains: filters.search, mode: 'insensitive' as const } } : {}),
       },
       orderBy: { name: 'asc' },
+      take: 1000, // limite de segurança (auditoria) - evita devolver toda a tabela de uma vez
     });
   }
 

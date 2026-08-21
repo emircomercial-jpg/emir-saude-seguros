@@ -39,6 +39,7 @@ export class LaboratoryService {
       where: { organizationId, status: status || undefined },
       include: { insuredMember: true, provider: true, result: true },
       orderBy: { requestedAt: 'desc' },
+      take: 1000, // limite de seguranca (auditoria) - evita devolver toda a tabela de uma vez
     });
   }
 

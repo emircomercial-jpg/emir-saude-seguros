@@ -55,6 +55,7 @@ export class BillingService {
       where: { organizationId, status: status || undefined },
       include: { provider: true, items: true },
       orderBy: { createdAt: 'desc' },
+      take: 1000, // limite de seguranca (auditoria) - evita devolver toda a tabela de uma vez
     });
   }
 

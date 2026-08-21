@@ -59,6 +59,7 @@ export class ClaimsService {
       where: { organizationId, status: status || undefined },
       include: { insuredMember: true, provider: true },
       orderBy: { createdAt: 'desc' },
+      take: 1000, // limite de seguranca (auditoria) - evita devolver toda a tabela de uma vez
     });
   }
 

@@ -15,6 +15,7 @@ export class AgreementsService {
     return this.prisma.insuranceAgreement.findMany({
       where: { organizationId, deletedAt: null, ...(status ? { status } : {}) },
       orderBy: { createdAt: 'desc' },
+      take: 1000, // limite de segurança (auditoria) - evita devolver toda a tabela de uma vez
     });
   }
 

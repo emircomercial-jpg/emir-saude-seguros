@@ -57,6 +57,7 @@ export class CardsService {
     return this.prisma.insuranceCard.findMany({
       where: { insuredMemberId },
       orderBy: { issueDate: 'desc' },
+      take: 1000, // limite de seguranca (auditoria) - evita devolver toda a tabela de uma vez
     });
   }
 

@@ -26,6 +26,7 @@ export class PoliciesService {
       where: { organizationId, deletedAt: null, status: (status as any) || undefined },
       include: { plan: true, company: true, members: { include: { insuredMember: true } } },
       orderBy: { issueDate: 'desc' },
+      take: 1000, // limite de seguranca (auditoria) - evita devolver toda a tabela de uma vez
     });
   }
 

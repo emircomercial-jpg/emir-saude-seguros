@@ -20,6 +20,7 @@ export class PlansService {
       where: { organizationId, deletedAt: null },
       include: { coverages: true, _count: { select: { companies: true } } },
       orderBy: { name: 'asc' },
+      take: 1000, // limite de seguranca (auditoria) - evita devolver toda a tabela de uma vez
     });
   }
 
