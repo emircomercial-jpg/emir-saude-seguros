@@ -4,6 +4,11 @@ import { useAuthStore } from '@/stores/authStore';
 import { env } from '@/config/env';
 import { fetchMe } from '@/services/authService';
 
+function readCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 // Ao carregar a aplicação, tenta restaurar a sessão a partir do cookie
 // HTTP-only do refresh token (o access token, em memória, perde-se sempre
 // que a página é recarregada — secção 7 do briefing). Se não houver sessão
@@ -20,10 +25,11 @@ export function useAuthBootstrap() {
 
     async function bootstrap() {
       try {
+        const csrfToken = readCookie('csrfToken');
         const response = await axios.post(
           `${env.apiUrl}/auth/refresh`,
           {},
-          { withCredentials: true },
+          { withCredentials: true, headers: csrfToken ? { 'x-csrf-token': csrfToken } : undefined },
         );
         const accessToken = response.data.data.accessToken as string;
         useAuthStore.getState().setAccessToken(accessToken);

@@ -30,14 +30,28 @@ apiClient.interceptors.request.use((config) => {
 
 let refreshPromise: Promise<string> | null = null;
 
+// Lê o valor de um cookie legível por JavaScript pelo nome (usado só para
+// o cookie CSRF — o cookie de sessão em si é HTTP-only e nunca acessível
+// aqui, propositadamente).
+function readCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 // Quando o access token expira (401), tenta renová-lo uma única vez através
 // do cookie HTTP-only do refresh token, sem forçar o utilizador a fazer
 // login de novo. Se a renovação também falhar, a sessão é terminada.
+//
+// O cabeçalho x-csrf-token é exigido pelo backend como protecção contra
+// CSRF (ver auth.controller.ts) — o valor vem de um cookie próprio,
+// legível apenas pelo próprio site (nunca por um site malicioso de
+// terceiros), que o backend confirma corresponder ao refresh token actual.
 async function refreshAccessToken(): Promise<string> {
+  const csrfToken = readCookie('csrfToken');
   const response = await axios.post<ApiSuccessResponse<{ accessToken: string }>>(
     `${env.apiUrl}/auth/refresh`,
     {},
-    { withCredentials: true },
+    { withCredentials: true, headers: csrfToken ? { 'x-csrf-token': csrfToken } : undefined },
   );
   const { accessToken } = response.data.data;
   useAuthStore.getState().setAccessToken(accessToken);

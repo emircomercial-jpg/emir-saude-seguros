@@ -2,12 +2,14 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Post,
   Req,
   Res,
 } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { ApiTags } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
@@ -21,6 +23,8 @@ import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser, CurrentUserPayload } from '../common/decorators/current-user.decorator';
 
 const REFRESH_COOKIE_NAME = 'refreshToken';
+const CSRF_COOKIE_NAME = 'csrfToken';
+const CSRF_HEADER_NAME = 'x-csrf-token';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -59,6 +63,36 @@ export class AuthController {
       maxAge: maxAgeMs,
       path: '/api/auth',
     });
+    this.setCsrfCookie(res, token, maxAgeMs, isProduction);
+  }
+
+  // Protecção CSRF (padrão "duplo envio") para o endpoint /refresh — como
+  // o cookie de sessão usa sameSite:'none' em produção (necessário porque
+  // frontend e backend ficam em domínios diferentes), um site malicioso
+  // conseguiria disparar um pedido para /refresh com o cookie anexado
+  // automaticamente. Este segundo cookie, propositadamente LEGÍVEL por
+  // JavaScript (ao contrário do cookie de sessão), tem de ser lido pelo
+  // frontend e reenviado como cabeçalho em cada pedido de refresh — um
+  // site malicioso nunca consegue ler cookies de outro domínio, por isso
+  // nunca consegue construir esse cabeçalho correctamente.
+  //
+  // O valor não precisa de ser guardado em lado nenhum: é sempre uma
+  // assinatura HMAC do próprio refresh token, com o mesmo segredo dos
+  // cookies — por isso é sempre possível recalculá-lo e comparar, sem
+  // estado adicional.
+  private computeCsrfToken(refreshToken: string): string {
+    const secret = this.config.get<string>('cookie.secret')!;
+    return crypto.createHmac('sha256', secret).update(refreshToken).digest('hex');
+  }
+
+  private setCsrfCookie(res: Response, refreshToken: string, maxAgeMs: number, isProduction: boolean) {
+    res.cookie(CSRF_COOKIE_NAME, this.computeCsrfToken(refreshToken), {
+      httpOnly: false,
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
+      maxAge: maxAgeMs,
+      path: '/api/auth',
+    });
   }
 
   private clearRefreshCookie(res: Response) {
@@ -66,6 +100,12 @@ export class AuthController {
     res.clearCookie(REFRESH_COOKIE_NAME, {
       path: '/api/auth',
       httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
+    });
+    res.clearCookie(CSRF_COOKIE_NAME, {
+      path: '/api/auth',
+      httpOnly: false,
       secure: isProduction,
       sameSite: isProduction ? 'none' : 'lax',
     });
@@ -92,6 +132,20 @@ export class AuthController {
   @Post('refresh')
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const rawToken = req.signedCookies?.[REFRESH_COOKIE_NAME];
+
+    // Verificação CSRF — só prossegue se o cabeçalho enviado pelo frontend
+    // corresponder ao valor esperado para ESTE refresh token específico.
+    // Um site malicioso consegue fazer o browser enviar o cookie
+    // automaticamente, mas nunca consegue ler o seu valor para construir
+    // este cabeçalho correctamente.
+    if (rawToken) {
+      const providedCsrfToken = req.headers[CSRF_HEADER_NAME];
+      const expectedCsrfToken = this.computeCsrfToken(rawToken);
+      if (providedCsrfToken !== expectedCsrfToken) {
+        throw new ForbiddenException('Verificação de segurança falhou. Por favor, actualiza a página e tenta novamente.');
+      }
+    }
+
     const result = await this.authService.refresh(rawToken, this.requestContext(req));
     this.setRefreshCookie(res, result.refreshToken, result.refreshTokenExpiresInMs);
 
